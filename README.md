@@ -21,7 +21,7 @@ The video is recorded from a live session with a real person in front of the cam
 ## What it does
 
 1. **Consent first.** Kin asks for camera consent and a separate, off-by-default opt-in for the expression mirror. It explains exactly what stays on the device and what leaves it.
-2. **API key, held in memory.** You paste a SmartSpectra key once. Kin uses it for the SDK’s authentication handshake and clears the input. The key is never written to disk or logged.
+2. **API key, held in memory.** In the public build, you paste a SmartSpectra key once. The private keyed judging build reads a local `kin.key` beside the executable. Either way, Kin uses the key for the SDK’s authentication handshake, clears the input, and does not write the key to disk or logs.
 3. **The portrait wakes.** The native SDK owns the camera and emits processed preview frames to the studio, so you can see yourself while it measures. As measurements arrive, the portrait gains a pulse glow, then breathing motion, then visible expression.
 4. **Live signals are shown honestly.** Pulse, breathing rate, confidence, and stability are displayed only when the SDK supplies them. Missing numeric signals stay blank. If the SDK supplies a live pulse rate without the arterial-pressure trace, the portrait paces its glow from that measured rate; it never invents a number, waveform, or confidence.
 5. **Pause or end any time.** Pause stops the camera and releases it. End clears the in-memory key and every derived value. The SDK may leave technical files under Windows app data; the paths and deletion steps are in **Storage** below.
@@ -50,19 +50,19 @@ Kin deliberately **does not request facial landmarks (`11`)**, HRV (`17`), EDA (
 - Windows 10 or 11, x64 (tested on Windows 11 Pro)
 - Node.js 20 or newer (tested with Node 24.19)
 - A webcam
-- A SmartSpectra API key from the [Presage developer portal](https://physiology.presagetech.com/auth/register)
+- A SmartSpectra API key from the [Presage developer portal](https://physiology.presagetech.com/auth/register) for the public build; the private keyed judging build supplies one at runtime
 
 The repository includes the Microsoft VC++ runtime DLLs that the native SmartSpectra runtime needs, so a separate Visual C++ Redistributable install is not required.
 
 ### Testing for judges
 
-Kin has **no Kin account, login, or cloud service**. It does require a SmartSpectra API key. To test the full app:
+Kin has **no Kin account, login, or cloud service**. The public build requires a SmartSpectra API key; the private keyed judging build skips the key screen. To test the full app:
 
-1. Create a free Presage developer key at <https://physiology.presagetech.com/auth/register>.
-2. Run Kin and paste the key at the key prompt. The key is held in memory for the session and is never written or logged.
+1. For the public build, create a free Presage developer key at <https://physiology.presagetech.com/auth/register>. For a no-key run, use the private keyed portable build.
+2. In the public build, run Kin and paste the key at the key prompt. In the keyed build, continue from consent straight to the camera. The key is held in memory for the session and is never written or logged.
 3. The demo video is the fastest no-setup verification of the live signal integration.
 
-The public repository and public installers intentionally contain no key; a client-side key would be extractable. For a private keyed demo/judges build, the operator can use the `KIN_API_KEY` environment variable or a local `kin.key` file as described below. If you need a temporary keyed build for judging, contact the author through the DEV submission; do not publish a key in the repository or a release.
+The public repository and public installers intentionally contain no key; a client-side key would be extractable. For a no-key judging run, use the private keyed portable build: it carries a local `kin.key` beside the executable and skips the key screen. The operator can also use the `KIN_API_KEY` environment variable or a local `kin.key` file as described below. Contact the author through the DEV submission for the private package. Do not publish a key in the repository or a public release.
 
 ### Run from source
 
@@ -78,8 +78,8 @@ npm start
 ### Use
 
 1. Read the consent screen. Check **I agree** for camera + pulse + breathing and the general-wellness acknowledgement. The expression mirror is optional and off by default.
-2. Paste your SmartSpectra API key. It stays in memory for the session.
-3. After the key is accepted, the camera opens. The studio shows a live local self-view on the left. On a wide display the portrait opens in a companion window beside it; on a smaller display the portrait sits beside the self-view inside the studio. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest in frame. Soft, even light in front of you works best; avoid strong backlight.
+2. In the public build, paste your SmartSpectra API key. It stays in memory for the session. In the private keyed judging build, the key is supplied by a local `kin.key` beside the executable and this screen is skipped.
+3. After consent and key acceptance (or immediately in the keyed build), the camera opens. The studio shows a live local self-view on the left. On a wide display the portrait opens in a companion window beside it; on a smaller display the portrait sits beside the self-view inside the studio. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest in frame. Soft, even light in front of you works best; avoid strong backlight.
 4. The portrait wakes as signals arrive. Warm-up depends on light, stillness, and the SDK; breathing often appears first, and pulse can take longer. The validation line tells you what to fix.
 5. Press `P` for present mode. Press `F` to reopen the portrait window if you close it.
 6. Press **Pause** to release the camera, or **End** to clear the session.
@@ -250,7 +250,7 @@ Kin does not diagnose, treat, monitor, or predict any medical condition. It does
 - The arterial-pressure trace is uncalibrated and unitless; Kin uses it only as a waveform for animation, never as a blood-pressure reading.
 - Presage’s usage-verification check can drop a session if its network request cannot complete. Kin stops, keeps the last values as stopped estimates, and offers **Try Again**; it never continues by inventing values. Keep demo sessions short and check connectivity.
 - Windows x64 is the tested target. The SDK also supports macOS and Linux, but Kin’s packaging and camera permission policy are Windows-first for this submission.
-- A SmartSpectra key is required; a free Presage trial key is sufficient. Kin has no account system and no bundled key.
+- The public build requires a SmartSpectra key; a free Presage trial key is sufficient. The private keyed judging build skips the key screen. Kin has no account system and no key in the public artifacts.
 
 ---
 

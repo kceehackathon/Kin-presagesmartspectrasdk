@@ -1,15 +1,15 @@
 # Testing Kin
 
-Kin has no Kin account, login, or cloud service. The only credential is a free SmartSpectra API key.
+Kin has no Kin account, login, or cloud service. The public build asks for a free SmartSpectra API key; the private keyed judging build supplies one through a local `kin.key` beside the executable and skips the key screen.
 
 ## What you need
 
 - Windows 10 or 11, x64
 - A webcam
 - Node.js 20 or newer if you run from source
-- A free SmartSpectra key from <https://physiology.presagetech.com/auth/register>
+- A free SmartSpectra key from <https://physiology.presagetech.com/auth/register> for the public build; the private keyed judging build supplies one at runtime
 
-The public repository and installers contain no key. Do not ask for a public key. A SmartSpectra key is tied to a Presage account and can be extracted from any client build, so a public key would be a leak.
+The public repository and public installers contain no key. For a no-key run, use the private keyed judging build; it carries a local `kin.key` beside the executable. Do not ask for a public key. A SmartSpectra key is tied to a Presage account and can be extracted from any client build, so a public key would be a leak.
 
 ## Run it
 
@@ -29,7 +29,7 @@ npm start
 ## Three-minute test
 
 1. **Consent gate.** Launch Kin. The consent screen should appear before any camera access. Try clicking **I consent — continue** without checking both required boxes; it should stay disabled. Check **I agree** under **Camera + pulse + breathing** and the general-wellness acknowledgement. Leave **Expression mirror** off.
-2. **Key handling.** Click **I consent — continue**. Paste a free SmartSpectra key into the masked field. Do not click **Show**. Click **Begin listening**. The camera opens and the studio self-view appears.
+2. **Key handling.** Click **I consent — continue**. In the public build, paste a free SmartSpectra key into the masked field. Do not click **Show**. In the private keyed build, this screen is skipped because `kin.key` is beside the executable. Click **Begin listening** in the public build. Either way, the camera opens and the studio self-view appears.
 3. **Live self-view.** Confirm that you can see yourself in the left studio panel. On a wide display, a separate portrait window opens beside the studio. On a smaller display, the portrait appears inside the studio beside the self-view. The portrait should not show a camera feed.
 4. **Positioning.** Sit about 50–90 cm from the camera with your face, shoulders, and upper chest visible. The validation line should change from a warning such as **No face yet** or **Chest not in frame** to a normal listening state.
 5. **Live signals.** Wait for breathing and pulse. Breathing usually appears first. The pulse and breathing cards should show live numbers, and the portrait should move from the measured traces. When a signal is missing, the number should stay blank and the portrait should stop rather than inventing a value.
@@ -37,7 +37,7 @@ npm start
 7. **Privacy.** Open **Privacy & data**. Check that it covers storage, sharing, retention, deletion, SDK telemetry, and AI. Confirm that Kin has no recording control, no upload control, and no account.
 8. **End.** Click **End**. Confirm **End session**. The camera should stop, the studio should return to the consent/key flow, and the in-memory key should be gone. Relaunching should ask for a key again unless an operator key is configured.
 9. **No network from the renderer.** Optional source check: `index.html` and `stage.html` use `connect-src 'none'`; the renderer does not call `getUserMedia`. The native SDK is created in `main.js` with `enableTelemetry: false`.
-10. **No key in the artifact.** The repository and installers contain no key. Do not add one to a public build.
+10. **No key in a public artifact.** The repository and public installers contain no key. The private keyed package uses a `kin.key` sidecar and must not be published.
 
 ## Expected result
 
@@ -62,6 +62,6 @@ npm start
 ## What not to expect
 
 - A Kin login. There is none.
-- A bundled API key. There is none.
+- A bundled API key in the public artifacts. There is none. The private keyed judging package uses a local sidecar file and is not public.
 - A recording feature. Kin does not record. If a demo video exists, it was recorded by separate software such as vokoscreenNG or OBS, not by Kin.
 - A medical device. Kin provides general-wellness and entertainment estimates only.

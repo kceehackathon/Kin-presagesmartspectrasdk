@@ -14,7 +14,7 @@ The portrait is driven by measured signals, not animation loops. It does not inv
 
 Demo video: pending YouTube upload.
 
-The video shows the consent screen, the key prompt (masked), the live self-view, the live pulse and breathing values, the portrait, and the privacy panel. It ends by stopping the session and showing that the camera stops. The demo was recorded with vokoscreenNG; Kin has no recording feature. The demo script is in [`demo-script.md`](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/blob/main/demo-script.md).
+The video shows the consent screen, the live self-view, the live pulse and breathing values, the portrait, and the privacy panel. It ends by stopping the session and showing that the camera stops. The demo was recorded with a private keyed build, so the key screen is skipped; the key is supplied by a local `kin.key` file beside the executable and is not embedded in the public artifact or repository. The demo was recorded with vokoscreenNG; Kin has no recording feature. The demo script is in [`demo-script.md`](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/blob/main/demo-script.md).
 
 ## Code
 
@@ -66,7 +66,7 @@ Presage's usage-verification request can fail on a weak connection. When it does
 - Windows 10 or 11, x64
 - Node.js 20 or newer
 - A webcam
-- A free SmartSpectra API key from <https://physiology.presagetech.com/auth/register>
+- A SmartSpectra API key from <https://physiology.presagetech.com/auth/register> for the public build; the private keyed judging build supplies one at runtime
 
 The repository includes the Microsoft VC++ runtime DLLs that the native SmartSpectra runtime needs. A separate Visual C++ Redistributable install is not required.
 
@@ -84,8 +84,8 @@ npm start
 ### Use
 
 1. Read the consent screen. Check the camera + pulse + breathing consent and the general-wellness acknowledgement. The expression mirror is optional and off by default.
-2. Create a free SmartSpectra key at the link above and paste it into the key prompt. The field is a password field. The key is held in memory for the session and is never written to disk or logged by Kin.
-3. After the key is accepted, the camera opens. The studio shows the live local self-view on the left. On a wide display the portrait opens in a companion window beside it; on a smaller display the portrait sits beside the self-view inside the studio. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest visible. Soft, even light in front of you works best.
+2. In the public build, create a free SmartSpectra key at the link above and paste it into the key prompt. In the private keyed judging build, a local `kin.key` beside the executable supplies the key and this screen is skipped. The key is held in memory for the session and is never written to disk or logged by Kin.
+3. After consent and key acceptance (or immediately in the keyed build), the camera opens. The studio shows the live local self-view on the left. On a wide display the portrait opens in a companion window beside it; on a smaller display the portrait sits beside the self-view inside the studio. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest visible. Soft, even light in front of you works best.
 4. Wait for the SDK to report signals. Breathing usually appears before pulse. The validation line tells you what to fix. The portrait stays still until a fresh signal arrives.
 5. Press `P` for present mode. Press `F` to reopen the portrait window if you close it.
 6. Press **Pause** to release the camera, or **End** to clear the session and the in-memory key.
@@ -100,15 +100,15 @@ The installer and portable executable are written to `release/`. The build is no
 
 ### Testing for judges
 
-Kin has **no Kin account, login, or cloud service**. The only credential is the SmartSpectra API key.
+Kin has **no Kin account, login, or cloud service**. The only credential is the SmartSpectra API key. The public build asks for one; the private keyed judging build supplies it at runtime and skips the key screen.
 
-1. Create a free key at <https://physiology.presagetech.com/auth/register>.
-2. Launch Kin and paste the key at the prompt. Do not use a public key from this repository; there isn't one.
+1. For the public build, create a free key at <https://physiology.presagetech.com/auth/register>. For a no-key run, use the private keyed portable build; it reads a local `kin.key` beside the executable.
+2. Launch Kin. In the public build, paste the key at the prompt. In the keyed build, continue from consent straight to the camera. Do not use a key from this repository; there isn't one.
 3. Complete the consent screen and sit in frame. Wait for the pulse and breathing values. The self-view stays visible while the SDK measures.
 4. Open **Privacy & data** to see the storage, sharing, retention, deletion, and telemetry details.
 5. Press **End** when finished. The camera stops and the in-memory key is cleared.
 
-If you need a temporary keyed build for judging, contact me through this DEV post. I can provide one privately. Do not put a SmartSpectra key in a public repository or release. A client-side key can be extracted.
+For a no-key judging run, contact me through this DEV post. I can provide the private keyed portable package. It is not uploaded to the public repository or public release; a client-side key is extractable, so it is shared privately and rotated after judging.
 
 A one-page test checklist is in [`TESTING.md`](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/blob/main/TESTING.md).
 
@@ -134,12 +134,12 @@ The full shot-by-shot script is in [`demo-script.md`](https://github.com/kceehac
 | Time | Screen | Narration |
 | --- | --- | --- |
 | 0:00 | Consent screen | "This is Kin. It uses Presage SmartSpectra to drive a portrait from live pulse and breathing. The camera is gated by consent, and the expression mirror is off by default." |
-| 0:20 | Key prompt | "Kin needs a free SmartSpectra key. I paste it here. The field is masked, and the key is held in memory for this session." |
+| 0:20 | Camera opens | "This private demo build uses a local operator key, so there is no key screen. The key stays outside the public repository and public installer. The camera is opening now." |
 | 0:40 | Studio and portrait | "This is the live SDK self-view on the left. The portrait on the right is driven by the same session. I am not using a recorded signal." |
 | 1:05 | Live values | "The pulse and breathing numbers come from SmartSpectra. The validation line tells me to stay in frame. When a signal is missing, the portrait stops." |
 | 1:35 | Privacy & data | "Kin records nothing and uploads nothing. The native SDK authenticates with Presage and downloads encrypted models. Telemetry is off. The README lists the technical files the SDK may keep and how to delete them." |
 | 1:55 | End | "End clears the in-memory key and stops the camera. There is no Kin account to delete." |
-| 2:05 | Closing | "The code and Windows build are in the public repository. Judges can use a free SmartSpectra key. The app is not a medical device." |
+| 2:05 | Closing | "The code and Windows build are in the public repository. The public build uses a free SmartSpectra key; the private keyed judging build skips that screen. The app is not a medical device." |
 
 ## What I Learned
 
@@ -152,7 +152,7 @@ I am entering **Best Thoughtful Real-World Use**, for the consent-first, local-o
 ## Limitations
 
 - Windows x64 is the tested target.
-- A free SmartSpectra API key is required; Kin has no account system.
+- The public build requires a free SmartSpectra API key; the private keyed judging build skips the key screen. Kin has no account system.
 - Live values depend on camera position, light, stillness, and the SDK's warm-up. The app shows validation hints instead of filling missing values.
 - Presage's usage-verification request can fail on a weak connection. Kin stops and offers **Try Again** rather than continuing from stale data.
 - The public installers contain no key. A private operator-key build can be supplied for judging; a public client-side key would be extractable.

@@ -45,7 +45,7 @@ Do not open the primary webcam in vokoscreenNG "just in case." Test the exact se
     - The screen is sharp.
     - The microphone level is not clipping.
     - Kin's self-view and the portrait are both visible.
-    - No notification, key, or private window is on screen.
+    - No notification, key file, or private window is on screen. The keyed demo build skips the key screen; keep its folder and `kin.key` out of the capture.
 
 The default Start/Stop shortcut is `CTRL+SHIFT+F10`. It does not clash with Kin's `P` or `F` shortcuts.
 
