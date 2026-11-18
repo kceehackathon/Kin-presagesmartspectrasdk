@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "A consent-first living portrait that listens to your pulse and breath with the SmartSpectra SDK.",
-  "author": "amdn77",
+  "author": "kceehackathon",
   "license": "MIT",
   "main": "main.js",
   "scripts": {
@@ -32,7 +32,7 @@
   "build": {
     "appId": "com.kin.livingportrait",
     "productName": "Kin",
-    "copyright": "Copyright \u00a9 2026 amdn77",
+    "copyright": "Copyright \u00a9 2026 kceehackathon",
     "directories": {
       "output": "release"
     },
