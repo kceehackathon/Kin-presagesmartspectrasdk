@@ -546,6 +546,7 @@ function broadcastState(now = performance.now()) {
 
 function openFrame() {
   if (frameWindow && !frameWindow.closed) {
+    els.app.dataset.companion = 'on';
     frameWindow.focus();
     broadcastState();
     return;
@@ -557,9 +558,12 @@ function openFrame() {
     return;
   }
 
+  els.app.dataset.companion = 'on';
+
   try {
     frameWindow.addEventListener('beforeunload', () => {
       frameWindow = null;
+      delete els.app.dataset.companion;
     });
   } catch {
     /* cross-window listener is best-effort */
@@ -579,6 +583,11 @@ function closeFrame() {
     }
   }
   frameWindow = null;
+  delete els.app.dataset.companion;
+}
+
+function companionFits() {
+  return Boolean(window.screen && Number(window.screen.availWidth) >= 1250);
 }
 
 // ------------------------------------------------------------- SDK lifecycle
@@ -654,10 +663,13 @@ function paintPreview(event) {
 }
 
 function enterMirrorMode() {
-  if (!frameWindow || frameWindow.closed) openFrame();
+  // The companion portrait only opens when the display can hold it beside the
+  // studio. On smaller displays the studio shows the portrait and the live
+  // self-view together, so the rail and End action stay accessible.
+  if (companionFits() && (!frameWindow || frameWindow.closed)) openFrame();
   els.app.dataset.mirror = 'on';
   // Keep the studio focused; the portrait window is a companion, not a
-  // second thing to manage. It opens to the right of the studio.
+  // second thing to manage. It opens to the right of the studio when there is room.
   setTimeout(() => {
     try {
       window.focus();

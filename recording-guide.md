@@ -27,7 +27,7 @@ Do not open the primary webcam in vokoscreenNG "just in case." Test the exact se
 ## vokoscreenNG setup
 
 1. Download vokoscreenNG from the official page and install it. There is no account or paid tier.
-2. Launch vokoscreenNG. On the **Screen** tab, choose **Fullscreen** and select the display that contains both Kin windows. Do not use **Window** for the main recording; it can miss the portrait window. Do not use **Area** unless you deliberately want to crop.
+2. Launch vokoscreenNG. On the **Screen** tab, choose **Fullscreen** and select the display that contains both Kin panels (and the separate portrait window, if it is open). Do not use **Window** for the main recording; it can miss the portrait or the self-view. Do not use **Area** unless you deliberately want to crop.
 3. In the audio device list, check only your microphone. Uncheck monitor or desktop audio unless you want system sounds. Kin has no sound of its own.
 4. Set **Frames** to `30`.
 5. Set **Format** to `MP4` and **Video codec** to `H.264`. If vokoscreenNG asks to download the Cisco OpenH264 encoder, accept it. If MP4 with H.264 is not available on your install, record `MKV` with H.264 and convert or remux to MP4 before upload.

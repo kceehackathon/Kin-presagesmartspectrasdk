@@ -30,7 +30,7 @@ npm start
 
 1. **Consent gate.** Launch Kin. The consent screen should appear before any camera access. Try clicking **I consent — continue** without checking both required boxes; it should stay disabled. Check **I agree** under **Camera + pulse + breathing** and the general-wellness acknowledgement. Leave **Expression mirror** off.
 2. **Key handling.** Click **I consent — continue**. Paste a free SmartSpectra key into the masked field. Do not click **Show**. Click **Begin listening**. The camera opens and the studio self-view appears.
-3. **Live self-view.** Confirm that you can see yourself in the left studio panel and that a separate portrait window opens beside the studio. The portrait should not show a camera feed.
+3. **Live self-view.** Confirm that you can see yourself in the left studio panel. On a wide display, a separate portrait window opens beside the studio. On a smaller display, the portrait appears inside the studio beside the self-view. The portrait should not show a camera feed.
 4. **Positioning.** Sit about 50–90 cm from the camera with your face, shoulders, and upper chest visible. The validation line should change from a warning such as **No face yet** or **Chest not in frame** to a normal listening state.
 5. **Live signals.** Wait for breathing and pulse. Breathing usually appears first. The pulse and breathing cards should show live numbers, and the portrait should move from the measured traces. When a signal is missing, the number should stay blank and the portrait should stop rather than inventing a value.
 6. **Expression default.** Confirm that the expression mirror is off by default and that no emotion or stress label is shown. The optional mirror is a separate consent; it is not required to test the live signal.
@@ -42,7 +42,8 @@ npm start
 ## Expected result
 
 - The live self-view and the live pulse/breathing values are visible at the same time.
-- On a 1280 or 1366 work area, the studio and portrait fit side by side without covering the signal cards. On a very narrow display the portrait sits at the right edge.
+- The layout adapts to the available work area. On 1024×768, 1280×720, 1366×768, and 1920×1080, both the self-view and the portrait remain visible. When the display has room, the portrait opens beside the studio. On a smaller display it shares the stage with the self-view, so it does not cover the rail or the End button.
+- At a 1280×720 display with 150% scaling (about 853×480 DIP), the rail remains scrollable and the Pause/End actions stay visible.
 - The portrait moves from measured signals, not a looping animation.
 - The expression mirror is off unless explicitly enabled.
 - No video, audio, images, measurements, history, or API key are written by Kin.
@@ -55,7 +56,7 @@ npm start
 - **Key rejected:** create a fresh free key. Do not use a key from a public repository or a shared screenshot.
 - **No pulse yet:** breathing can appear before pulse. Hold still, improve front lighting, and keep the upper chest in frame. Wait for the SDK warm-up.
 - **Session stops with an auth/usage error:** Presage's usage verification could not complete. Check the network and click **Try Again**. Kin will not continue from stale values.
-- **No portrait window:** press `F` in the studio to reopen it.
+- **No portrait or companion window:** press `F` in the studio to open it. On a smaller display the portrait is already inside the studio; `F` opens the floating companion instead.
 - **Present mode:** press `P`; press `P` again to return to the studio.
 
 ## What not to expect

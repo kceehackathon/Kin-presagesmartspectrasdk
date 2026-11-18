@@ -367,17 +367,19 @@ function createStudioWindow() {
     hardenWebContents(child.webContents, { allowStage: true });
 
     // Put the portrait beside the studio when there is room, so the live
-    // camera preview and the living portrait can be seen together. On a
-    // smaller display the portrait sits at the right edge instead.
+    // camera preview and the living portrait can be seen together. If the
+    // display is too small, float it over the studio instead of covering the
+    // rail and its End action.
     const studioBounds = win.getBounds();
     const area = screen.getDisplayMatching(studioBounds).workArea;
     const companionWidth = portraitPanelWidth(area) || Math.min(420, Math.round(area.width * 0.33));
     const companionHeight = Math.min(studioBounds.height, area.height);
-    const x = Math.min(
-      studioBounds.x + studioBounds.width,
-      area.x + area.width - companionWidth,
-    );
-    const y = Math.max(area.y, Math.min(studioBounds.y, area.y + area.height - companionHeight));
+    const fitsBeside = studioBounds.x + studioBounds.width + companionWidth <= area.x + area.width;
+    const x = fitsBeside
+      ? studioBounds.x + studioBounds.width
+      : Math.min(area.x + 16, area.x + area.width - companionWidth);
+    const desiredY = fitsBeside ? studioBounds.y : studioBounds.y + 16;
+    const y = Math.max(area.y, Math.min(desiredY, area.y + area.height - companionHeight));
     child.setBounds({ x, y, width: companionWidth, height: companionHeight });
     win.focus();
   });

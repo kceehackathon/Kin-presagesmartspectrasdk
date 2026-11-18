@@ -25,7 +25,7 @@ The video is recorded from a live session with a real person in front of the cam
 3. **The portrait wakes.** The native SDK owns the camera and emits processed preview frames to the studio, so you can see yourself while it measures. As measurements arrive, the portrait gains a pulse glow, then breathing motion, then visible expression.
 4. **Live signals are shown honestly.** Pulse, breathing rate, confidence, and stability are displayed only when the SDK supplies them. Missing numeric signals stay blank. If the SDK supplies a live pulse rate without the arterial-pressure trace, the portrait paces its glow from that measured rate; it never invents a number, waveform, or confidence.
 5. **Pause or end any time.** Pause stops the camera and releases it. End clears the in-memory key and every derived value. The SDK may leave technical files under Windows app data; the paths and deletion steps are in **Storage** below.
-6. **Present or frame.** Present mode hides the studio for a clean portrait. The frameless portrait window opens automatically beside the studio and receives only derived animation values, not camera frames. Press `F` to reopen it if you close it.
+6. **Present or frame.** Present mode hides the studio for a clean portrait. The frameless portrait window opens automatically beside the studio when the display has room and receives only derived animation values, not camera frames. On a smaller display, the portrait shares the studio stage with the self-view. Press `F` to reopen or open it.
 
 ### Signals requested
 
@@ -79,7 +79,7 @@ npm start
 
 1. Read the consent screen. Check **I agree** for camera + pulse + breathing and the general-wellness acknowledgement. The expression mirror is optional and off by default.
 2. Paste your SmartSpectra API key. It stays in memory for the session.
-3. After the key is accepted, the camera opens. The studio shows a live local self-view on the left; the portrait window opens beside it. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest in frame. Soft, even light in front of you works best; avoid strong backlight.
+3. After the key is accepted, the camera opens. The studio shows a live local self-view on the left. On a wide display the portrait opens in a companion window beside it; on a smaller display the portrait sits beside the self-view inside the studio. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest in frame. Soft, even light in front of you works best; avoid strong backlight.
 4. The portrait wakes as signals arrive. Warm-up depends on light, stillness, and the SDK; breathing often appears first, and pulse can take longer. The validation line tells you what to fix.
 5. Press `P` for present mode. Press `F` to reopen the portrait window if you close it.
 6. Press **Pause** to release the camera, or **End** to clear the session.
@@ -175,7 +175,7 @@ The preload exposes only two functions: send a typed lifecycle command and subsc
 
 If the key is not authorized for a signal, Kin removes that bundle and tells you which one, rather than pretending the signal is live. Pulse and breathing are the core; the expression mirror is dropped first.
 
-The companion portrait window (`stage.html`) is a separate renderer. It receives only derived animation values over `BroadcastChannel`; it never receives camera frames, metrics buffers, or the API key. The studio's own portrait is hidden while the self-view is live.
+The companion portrait window (`stage.html`) is a separate renderer. It receives only derived animation values over `BroadcastChannel`; it never receives camera frames, metrics buffers, or the API key. When a companion is open, the studio's own portrait is hidden. When the display has no room for a companion, the studio shows the portrait and the self-view together and the companion is not opened automatically.
 
 ### Project layout
 

@@ -4,7 +4,7 @@ This is my submission for the [Presage SmartSpectra SDK Challenge](https://dev.t
 
 ## What I Built
 
-Kin is an Electron app that uses the official Presage SmartSpectra Node SDK to turn live camera measurements into a portrait. The left side of the studio is the SmartSpectra camera preview. The right side is a separate portrait window that moves when the SDK reports a live pulse or breathing waveform.
+Kin is an Electron app that uses the official Presage SmartSpectra Node SDK to turn live camera measurements into a portrait. In the default wide layout, the left side of the studio is the SmartSpectra camera preview and the portrait is a separate companion window. On smaller displays, the portrait and self-view share the studio stage.
 
 The portrait is driven by measured signals, not animation loops. It does not invent a beat, a breath, or a confidence value. When a signal is missing, the portrait holds still and the matching number stays blank. The demo was recorded with me in front of the camera. It does not use a synthetic or pre-recorded signal.
 
@@ -53,7 +53,7 @@ The integration is visible in [`main.js`](https://github.com/kceehackathon/Kin-p
 
 Kin is Electron with a vanilla renderer. The first version ran the SmartSpectra SDK inside the renderer and used the SDK's `MediaStream` for the preview. The preview and the frame bridge competed for the same renderer thread, and the SDK eventually stopped the session on its frame-rate watchdog. I moved the SDK to the main process and used the `videoOutput` event as the self-view. The camera owner now produces the measurement frames, and the studio receives a throttled display copy.
 
-The two-window layout follows from that decision. The studio is a 1280-wide panel. The portrait is a frameless 520-wide window beside it. The portrait receives only derived animation values over `BroadcastChannel`; it never receives camera frames, metric buffers, or the API key. On a display too narrow for both panels, the portrait sits at the right edge instead.
+The two-window layout follows from that decision. The studio is a 1280-wide panel. On a wide display the portrait is a frameless 520-wide window beside it. The portrait receives only derived animation values over `BroadcastChannel`; it never receives camera frames, metric buffers, or the API key. The layout uses the available work area rather than assuming a 1080p screen. On a display too narrow for both panels, the portrait and self-view share the studio stage, so the rail and its End action stay accessible.
 
 The SDK provides validation hints such as **No face yet**, **Chest not in frame**, and **Too dark**. Kin shows those hints instead of hiding them. The portrait should say what is wrong instead of guessing.
 
@@ -85,7 +85,7 @@ npm start
 
 1. Read the consent screen. Check the camera + pulse + breathing consent and the general-wellness acknowledgement. The expression mirror is optional and off by default.
 2. Create a free SmartSpectra key at the link above and paste it into the key prompt. The field is a password field. The key is held in memory for the session and is never written to disk or logged by Kin.
-3. After the key is accepted, the camera opens. The studio shows the live local self-view on the left, and the portrait window opens beside it. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest visible. Soft, even light in front of you works best.
+3. After the key is accepted, the camera opens. The studio shows the live local self-view on the left. On a wide display the portrait opens in a companion window beside it; on a smaller display the portrait sits beside the self-view inside the studio. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest visible. Soft, even light in front of you works best.
 4. Wait for the SDK to report signals. Breathing usually appears before pulse. The validation line tells you what to fix. The portrait stays still until a fresh signal arrives.
 5. Press `P` for present mode. Press `F` to reopen the portrait window if you close it.
 6. Press **Pause** to release the camera, or **End** to clear the session and the in-memory key.
