@@ -51,7 +51,7 @@ npm start
 
 ## Troubleshooting
 
-- **Camera does not open:** close other apps that may own the webcam. Kin and OBS cannot reliably use the same camera at the same time.
+- **Camera does not open:** close other apps that may own the webcam. Kin and vokoscreenNG (or OBS) cannot reliably use the same camera at the same time.
 - **Key rejected:** create a fresh free key. Do not use a key from a public repository or a shared screenshot.
 - **No pulse yet:** breathing can appear before pulse. Hold still, improve front lighting, and keep the upper chest in frame. Wait for the SDK warm-up.
 - **Session stops with an auth/usage error:** Presage's usage verification could not complete. Check the network and click **Try Again**. Kin will not continue from stale values.
@@ -62,5 +62,5 @@ npm start
 
 - A Kin login. There is none.
 - A bundled API key. There is none.
-- A recording feature. Kin does not record. If a demo video exists, it was recorded by separate software such as OBS, not by Kin.
+- A recording feature. Kin does not record. If a demo video exists, it was recorded by separate software such as vokoscreenNG or OBS, not by Kin.
 - A medical device. Kin provides general-wellness and entertainment estimates only.

@@ -1,6 +1,6 @@
 # Kin demo video script
 
-Target length: 2:10 to 2:20. This keeps the live session short and leaves time to cut a bad take. The video should be recorded with OBS Studio, not with a screen recorder that hides the app. See `recording-guide.md` for the OBS setup and the webcam conflict.
+Target length: 2:10 to 2:20. This keeps the live session short and leaves time to cut a bad take. The video should be recorded with vokoscreenNG, with Kin's screen visible. See `recording-guide.md` for the vokoscreenNG setup and the webcam conflict.
 
 The spoken lines below are written to be read at a normal pace. They are not a voice-over script that has to be followed word for word. Keep the screen actions in order.
 
@@ -13,14 +13,14 @@ The spoken lines below are written to be read at a normal pace. They are not a v
 - Set the display to 1920×1080 if possible. Kin is designed for a 1280-wide studio plus a portrait panel.
 - Start from a fresh launch with the consent screen showing. Do not start from a session that has already been running.
 - Check the microphone with a 10-second test recording.
-- Do not add the same webcam to OBS while Kin is measuring. Kin owns the camera through the native SDK. The face on screen is Kin's live self-view. If you want a separate talking-head shot, use a second camera or a phone, or record that shot separately with Kin closed.
+- Do not enable the same webcam in vokoscreenNG while Kin is measuring. Kin owns the camera through the native SDK. The face on screen is Kin's live self-view. If you want a separate talking-head shot, use a second camera or a phone, or record that shot separately with Kin closed.
 - If the SDK shows a validation warning, fix the position and wait. Do not edit in a fake signal. A cut is fine; a substituted signal is not.
 
 ## Shot list
 
 | Time | Screen | What you do | What you say |
 | --- | --- | --- | --- |
-| 0:00–0:10 | Consent screen | Start on the consent card. Move the pointer over the camera consent text, then leave it still. | "This is Kin. It is an Electron app that uses Presage SmartSpectra to drive a portrait from live pulse and breathing. I am recording the screen with OBS. Kin itself does not record." |
+| 0:00–0:10 | Consent screen | Start on the consent card. Move the pointer over the camera consent text, then leave it still. | "This is Kin. It is an Electron app that uses Presage SmartSpectra to drive a portrait from live pulse and breathing. I am recording the screen with vokoscreenNG. Kin itself does not record." |
 | 0:10–0:25 | Consent screen | Check **I agree** under **Camera + pulse + breathing**. Leave the **Expression mirror** switch off. Check the general-wellness acknowledgement. Click **I consent — continue**. | "The camera is gated by consent. I am agreeing to camera, pulse, and breathing measurement, and I understand this is a general-wellness estimate, not a diagnosis. The expression mirror stays off." |
 | 0:25–0:40 | Key prompt | Paste the temporary key into the masked field. Do not click **Show**. Click **Begin listening**. | "Kin has no account. It needs a free SmartSpectra key. I paste it here. The field masks it, and the key stays in memory for this session. It is not written to disk or included in the repository." |
 | 0:40–0:55 | Studio and portrait | Let the camera open. Keep your face, shoulders, and upper chest in frame. Show both windows with the pointer. | "This is the live SDK self-view on the left. The portrait is a separate window on the right. It receives only derived movement values, not camera frames. I am in front of the camera now; there is no pre-recorded signal." |
@@ -40,7 +40,7 @@ Use these in the description, not in the voice-over unless you need them:
 - No diagnosis, treatment, or medical decision-making. No emotion or stress claims.
 - Consent gate; expression mirror off by default; local-only processing; no recordings or uploads by Kin; SDK telemetry disabled.
 - Setup and judge instructions: link to the repository README and the DEV post.
-- Demo recorded with OBS Studio. Kin did not record the demo.
+- Demo recorded with vokoscreenNG. Kin did not record the demo.
 
 ## Editing check
 
