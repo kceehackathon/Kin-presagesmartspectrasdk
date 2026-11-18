@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob: mediastream:; font-src 'self'; worker-src 'self' blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+  <title>Kin — a living portrait</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="drag-strip" aria-hidden="true"></div>
+
+  <div class="app" id="app" data-screen="consent">
+    <main class="stage" id="stage">
+      <header class="stage-head">
+        <div class="brand">
+          <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+            <path d="M8 35V18C8 10.3 13.4 5 20 5s12 5.3 12 13v17" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            <circle cx="20" cy="23" r="3.2" fill="currentColor"/>
+            <path d="M12 31c2.8-2.2 5.2-3.2 8-3.2s5.2 1 8 3.2" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity=".45"/>
+          </svg>
+          <div>
+            <h1>Kin</h1>
+            <p>a living portrait</p>
+          </div>
+        </div>
+        <div class="stage-meta">
+          <button class="privacy-chip" id="privacy-chip" type="button" aria-label="Open the privacy and data note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="5" y="10" width="14" height="10" rx="2.5"/>
+              <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+            </svg>
+            On-device
+          </button>
+          <button class="icon-btn" id="privacy-btn" type="button" aria-label="Privacy and data details">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M12 11v5"/><path d="M12 8h.01"/>
+            </svg>
+          </button>
+          <button class="icon-btn present-exit" id="present-exit" type="button" aria-label="Exit present mode" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18"/>
+            </svg>
+            Exit
+          </button>
+        </div>
+      </header>
+
+      <div class="stage-body">
+        <div class="portrait-wrap">
+          <div id="portrait" class="portrait"></div>
+          <div class="portrait-caption" id="portrait-caption">No recording · No upload</div>
+        </div>
+
+        <div class="stage-mirror" aria-label="Live local camera preview">
+          <canvas id="stage-preview" width="640" height="480" aria-label="Live local camera preview"></canvas>
+          <div class="stage-mirror-guide" aria-hidden="true">
+            <svg viewBox="0 0 480 360" fill="none">
+              <rect x="34" y="20" width="412" height="320" rx="18" stroke="#e8c39e" stroke-width="1" stroke-dasharray="4 7" opacity=".22"/>
+              <path d="M240 62c34 0 60 28 60 66 0 30-15 55-36 66-8 4-16 6-24 6s-16-2-24-6c-21-11-36-36-36-66 0-38 26-66 60-66Z" stroke="#e8c39e" stroke-width="1.4" opacity=".5"/>
+              <path d="M142 340c10-44 40-66 98-78M338 340c-10-44-40-66-98-78" stroke="#e8c39e" stroke-width="1.4" opacity=".34"/>
+              <circle cx="240" cy="128" r="2.4" fill="#e8c39e" opacity=".62"/>
+              <path d="M240 104v-12M240 152v12M216 128h-12M264 128h12" stroke="#e8c39e" stroke-width="1" opacity=".26"/>
+            </svg>
+          </div>
+          <div class="stage-mirror-tag">Live local preview · not recorded</div>
+        </div>
+      </div>
+
+      <footer class="stage-foot">
+        <div class="stage-state" id="stage-state" data-tone="muted">
+          <span class="dot"></span>
+          <span id="stage-state-label">Sleeping</span>
+        </div>
+        <div class="stage-time" id="stage-time">00:00</div>
+        <div class="stage-foot-note">Estimate, not diagnosis</div>
+      </footer>
+
+      <div class="present-chips" id="present-chips" aria-hidden="true">
+        <div class="present-chip"><span>Pulse</span><strong id="present-pulse">—</strong></div>
+        <div class="present-chip"><span>Breath</span><strong id="present-breath">—</strong></div>
+        <div class="present-chip"><span>Expression</span><strong id="present-expression">—</strong></div>
+      </div>
+    </main>
+
+    <aside class="rail" id="rail" aria-label="Kin studio">
+      <header class="rail-head">
+        <div>
+          <h2>Studio</h2>
+          <p>Live signals, kept close</p>
+        </div>
+        <div class="rail-tools">
+          <button class="icon-btn" id="frame-btn" type="button" title="Open the frame window (F)" aria-label="Open the frame window">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="13" rx="2"/>
+              <path d="M8 21h8M12 17v4"/>
+            </svg>
+          </button>
+          <button class="icon-btn" id="present-btn" type="button" title="Present mode (P)" aria-label="Enter present mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="status-pill" id="status-pill" data-tone="muted">
+        <span class="dot"></span>
+        <span id="status-label">Sleeping</span>
+      </div>
+
+      <div class="notice" id="notice" hidden>
+        <span id="notice-text"></span>
+        <button id="notice-close" type="button" aria-label="Dismiss notice">×</button>
+      </div>
+
+      <section class="signal-grid" aria-label="Live signals">
+        <article class="signal-card" id="card-pulse" data-state="off">
+          <div class="signal-top">
+            <span class="signal-name">Pulse</span>
+            <span class="signal-state" id="pulse-state">Off</span>
+          </div>
+          <div class="signal-main">
+            <span class="signal-value" id="pulse-value">—</span>
+            <span class="signal-unit">bpm</span>
+          </div>
+          <canvas class="sparkline" id="pulse-spark" width="300" height="52" aria-hidden="true"></canvas>
+          <div class="signal-meta">
+            <span class="confidence-label" id="pulse-conf">No signal</span>
+            <div class="confidence"><i id="pulse-conf-bar"></i></div>
+          </div>
+        </article>
+
+        <article class="signal-card" id="card-breath" data-state="off">
+          <div class="signal-top">
+            <span class="signal-name">Breath</span>
+            <span class="signal-state" id="breath-state">Off</span>
+          </div>
+          <div class="signal-main">
+            <span class="signal-value" id="breath-value">—</span>
+            <span class="signal-unit">br/min</span>
+          </div>
+          <canvas class="sparkline" id="breath-spark" width="300" height="52" aria-hidden="true"></canvas>
+          <div class="signal-meta">
+            <span class="confidence-label" id="breath-conf">No signal</span>
+            <div class="confidence"><i id="breath-conf-bar"></i></div>
+          </div>
+        </article>
+
+        <article class="signal-card wide" id="card-expression" data-state="off">
+          <div class="signal-top">
+            <span class="signal-name">Visible expression</span>
+            <span class="signal-state" id="expression-state">Off</span>
+          </div>
+          <div class="signal-main">
+            <span class="signal-value is-text" id="expression-value">—</span>
+            <span class="signal-unit">mirror</span>
+          </div>
+          <div class="expression-bars" id="expression-bars" aria-hidden="true"></div>
+          <div class="signal-meta">
+            <span class="confidence-label" id="expression-conf">Expression mirror is off</span>
+            <div class="confidence"><i id="expression-conf-bar"></i></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="preview-row" aria-label="Camera privacy and signal guidance">
+        <div class="preview-card camera-card">
+          <div class="preview-head">
+            <span>Camera</span>
+            <span class="camera-local">Local only</span>
+          </div>
+          <div class="preview-frame camera-guide">
+            <svg viewBox="0 0 200 140" fill="none" aria-hidden="true">
+              <path d="M100 26c19 0 34 16 34 37 0 14-6 27-17 35-5 4-11 6-17 6s-12-2-17-6c-11-8-17-21-17-35 0-21 15-37 34-37Z" stroke="#d9a06e" stroke-width="1.1" opacity=".55"/>
+              <path d="M68 140c4-24 16-36 32-42M132 140c-4-24-16-36-32-42" stroke="#d9a06e" stroke-width="1.1" opacity=".35"/>
+              <path d="M100 108c5 0 9 3 9 7M88 40c4-5 8-7 12-7s8 2 12 7" stroke="#d9a06e" stroke-width="1" opacity=".3"/>
+              <circle cx="100" cy="64" r="2.2" fill="#e6b17c" opacity=".8"/>
+              <path d="M100 46v-8M100 82v8M82 64h-8M118 64h8" stroke="#d9a06e" stroke-width=".9" opacity=".35"/>
+            </svg>
+            <div class="preview-tag">Live preview</div>
+          </div>
+        </div>
+
+        <div class="validation" id="validation" data-tone="neutral">
+          <div class="validation-head">
+            <span class="validation-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>
+                <circle cx="12" cy="12" r="3.2"/>
+              </svg>
+            </span>
+            <span id="validation-label">Position</span>
+          </div>
+          <p id="validation-text">Waiting for the first frame.</p>
+        </div>
+      </section>
+
+      <div class="rail-actions">
+        <button class="btn btn-primary" id="pause-btn" type="button" disabled>
+          <svg id="pause-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="7" y="5" width="3.4" height="14" rx="1"/><rect x="13.6" y="5" width="3.4" height="14" rx="1"/>
+          </svg>
+          <span id="pause-label">Pause</span>
+        </button>
+        <button class="btn btn-ghost" id="end-btn" type="button" disabled>End</button>
+      </div>
+
+      <footer class="rail-foot">
+        <p>General-wellness estimates. Not a medical device.</p>
+        <button class="text-btn" id="privacy-link" type="button">Privacy &amp; data</button>
+      </footer>
+    </aside>
+  </div>
+
+  <!-- Consent ------------------------------------------------------------>
+  <div class="overlay" id="consent" role="dialog" aria-modal="true" aria-labelledby="consent-title">
+    <div class="card consent-card">
+      <div class="eyebrow">A quiet mirror</div>
+      <h1 id="consent-title">Before we begin</h1>
+      <p class="lede">Kin is a portrait that listens to the body. It needs your camera and your consent. No video, audio, or measurements are uploaded.</p>
+
+      <div class="consent-grid">
+        <div>
+          <div class="point">
+            <div class="point-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 8h3l1.5-2h7L17 8h3v10H4z"/><circle cx="12" cy="13" r="3.2"/>
+              </svg>
+            </div>
+            <div>
+              <h3>Your camera, on this device</h3>
+              <p>SmartSpectra estimates pulse, breathing, and — only if you opt in — visible facial expression. The measurement engine runs locally inside the SDK.</p>
+            </div>
+          </div>
+
+          <div class="point">
+            <div class="point-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12h3l2-5 3 10 2.5-7 2 4H21"/>
+              </svg>
+            </div>
+            <div>
+              <h3>The portrait responds</h3>
+              <p>A warm light follows your pulse waveform, the bust moves with your chest, and — only if you opt in — the face mirrors visible expression. When a signal is missing, the portrait stays still.</p>
+            </div>
+          </div>
+
+          <div class="point">
+            <div class="point-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M5 5h14v14H5z"/><path d="M8 9h8M8 12h5M8 15h7"/>
+              </svg>
+            </div>
+            <div>
+              <h3>No body data saved</h3>
+              <p>Kin writes no video, audio, images, measurements, history, or API key to disk. SmartSpectra may keep a technical device-key/model cache and diagnostic logs under Windows app data; they contain no camera frames, audio, or readings. The Kin session itself is non-persistent.</p>
+            </div>
+          </div>
+
+          <div class="leaves">
+            <h3>What leaves this device</h3>
+            <p><strong>Presage requests:</strong> authentication, usage verification, and encrypted model downloads. They can include your API key and session usage metadata, but never the camera preview, audio, or your measured values.</p>
+            <p><strong>Telemetry is off.</strong> No session summaries or readiness reports are sent. Kin has no account, analytics, or cloud storage.</p>
+          </div>
+        </div>
+
+        <div>
+          <div class="choice">
+            <div>
+              <div class="choice-title">Camera + pulse + breathing</div>
+              <div class="choice-desc">Required for Kin to listen. Frames stay local, in memory.</div>
+            </div>
+            <label class="check-inline"><input type="checkbox" id="consent-camera"> I agree</label>
+          </div>
+
+          <div class="choice">
+            <div>
+              <div class="choice-title">Expression mirror</div>
+              <div class="choice-desc">Optional. Requests blinking, talking, and expression signals. No facial landmarks. Off by default.</div>
+            </div>
+            <label class="switch"><input type="checkbox" id="consent-face"><span></span></label>
+          </div>
+
+          <div class="choice">
+            <div>
+              <div class="choice-title">Live local preview</div>
+              <div class="choice-desc">You can see yourself while Kin listens. The preview stays on this device, is never recorded or uploaded, and stops when you pause or end.</div>
+            </div>
+            <span class="camera-local">Private</span>
+          </div>
+
+          <details>
+            <summary>The full data note</summary>
+            <ul>
+              <li><strong>Storage:</strong> Kin itself stores no recordings, images, measurements, history, or API key. SmartSpectra may keep a technical device-key/model cache and diagnostic logs under Windows app data; these contain no camera frames, audio, or measured values. Chromium may keep ordinary app cache files; the Kin session is non-persistent.</li>
+              <li><strong>Sharing:</strong> none by Kin. The native SDK contacts Presage for authentication, usage verification, and encrypted models. Those requests do not carry preview frames, audio, or measured values.</li>
+              <li><strong>Retention:</strong> session state lives in memory and disappears on End or close. Technical SDK/app files may remain until you delete them; they contain no body data.</li>
+              <li><strong>Deletion:</strong> use End session or close Kin to clear session state. On Windows, the technical files are under <code>%APPDATA%\\Kin</code>, <code>%LOCALAPPDATA%\\Presage\\Physiology</code>, <code>%LOCALAPPDATA%\\SmartSpectraSDK</code>, and <code>%LOCALAPPDATA%\\Temp\\SmartSpectra*.log.*</code>. Delete them to remove those caches and logs. There is no Kin account or cloud copy.</li>
+              <li><strong>SDK telemetry:</strong> disabled. Kin sets <code>enableTelemetry: false</code>.</li>
+              <li><strong>AI:</strong> none. Kin does not use LLM Insights or send data to an AI service.</li>
+            </ul>
+          </details>
+
+          <label class="check">
+            <input type="checkbox" id="consent-medical">
+            <span>I understand Kin gives general-wellness estimates. It is not a medical device and cannot diagnose, treat, or predict anything.</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <p class="note">You can pause the camera or end the session at any time. Closing the app clears the in-memory key and all session state.</p>
+        <button class="btn-clay" id="consent-continue" type="button" disabled>I consent — continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key ---------------------------------------------------------------->
+  <div class="overlay hidden" id="keygate" role="dialog" aria-modal="true" aria-labelledby="key-title">
+    <div class="card key-card">
+      <div class="eyebrow">One key, held in memory</div>
+      <h1 id="key-title">Wake the portrait</h1>
+      <p class="lede">Paste your SmartSpectra API key. It is used once to authorize the session, then kept only in memory.</p>
+
+      <div class="key-field">
+        <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="SmartSpectra API key" aria-label="SmartSpectra API key">
+        <button id="key-reveal" type="button">Show</button>
+      </div>
+      <div class="form-error" id="key-error" role="alert" hidden></div>
+
+      <div class="key-actions">
+        <button class="text-btn" id="key-back" type="button">Back</button>
+        <button class="btn-clay" id="key-continue" type="button">Begin listening</button>
+      </div>
+
+      <p class="key-note">The camera opens next. You will see yourself in the studio, and the portrait opens beside it. Position your head, shoulders, and upper chest in the guide. The first signals can take up to a minute; keep still and stay in frame.</p>
+      <p class="key-note">Kin uses this key only for Presage authentication and usage verification. It is never written to disk, logged, or included in the repository. Closing the app forgets it.</p>
+      <p class="key-note">No key yet? <a href="https://physiology.presagetech.com/auth/register" target="_blank" rel="noreferrer">Create one at the Presage portal</a>.</p>
+    </div>
+  </div>
+
+  <!-- Privacy ------------------------------------------------------------>
+  <div class="overlay hidden" id="privacy" role="dialog" aria-modal="true" aria-labelledby="privacy-title">
+    <div class="card privacy-card">
+      <button class="modal-close" id="privacy-close" type="button" aria-label="Close privacy note">×</button>
+      <div class="eyebrow">Privacy &amp; data</div>
+      <h1 id="privacy-title">What Kin keeps</h1>
+      <p class="lede">Kin is built so the intimate part — your face and body — never leaves the room.</p>
+
+      <div class="privacy-grid">
+        <section class="privacy-block">
+          <h3>In memory, only while you listen</h3>
+          <ul>
+            <li>Camera frames, shown only in the local self-view and processed in memory by the native SmartSpectra SDK. No frame is recorded or written.</li>
+            <li>Derived animation values: pulse envelope, chest phase, expression targets.</li>
+            <li>Your API key, held by the SDK for the session.</li>
+          </ul>
+        </section>
+        <section class="privacy-block">
+          <h3>Never</h3>
+          <ul>
+            <li>Video or audio recordings.</li>
+            <li>Uploads of frames, audio, or measurements.</li>
+            <li>Analytics, accounts, or cloud storage.</li>
+            <li>Facial landmarks — Kin does not request them.</li>
+            <li>Session summaries or readiness reports.</li>
+          </ul>
+        </section>
+      </div>
+
+      <div class="privacy-split">
+        <section class="privacy-block">
+          <h3>Presage network requests</h3>
+          <p>Presage authenticates your API key, verifies usage, and provides encrypted model artifacts. SmartSpectra's measurement engine runs on this device. Telemetry is disabled, so no session summary or device-readiness report is sent; required usage accounting still runs. These requests can be correlated with your Presage account and can include session usage metadata, but not preview frames, audio, or measured values. Kin adds no analytics or uploads of its own.</p>
+        </section>
+        <div class="privacy-stack">
+          <section class="privacy-block">
+            <h3>Retention &amp; deletion</h3>
+            <p>There is no database, no recording, and no persistent Electron session. End session or close Kin to clear the key and every derived value from memory. SmartSpectra may leave a technical device-key/model cache and diagnostic logs under Windows app data, and Chromium may keep ordinary app cache files. None contain camera frames, audio, or measured values; the README lists the folders you can delete.</p>
+          </section>
+          <section class="privacy-block">
+            <h3>AI</h3>
+            <p>Kin does not use LLM Insights and does not send any data to an AI service.</p>
+          </section>
+        </div>
+      </div>
+
+      <p class="privacy-source">Verify it in the source: the renderer runs under <code>connect-src 'none'</code>, the Electron partition is non-persistent, facial landmarks are not requested, and the SDK is created with <code>enableTelemetry: false</code>.</p>
+
+      <div class="card-actions">
+        <span class="note">The full note is also in the repository README and the DEV submission.</span>
+        <button class="btn-clay" id="privacy-done" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- End confirmation --------------------------------------------------->
+  <div class="overlay hidden" id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="card confirm-card">
+      <div class="eyebrow">End session</div>
+      <h1 id="confirm-title">Let the portrait sleep?</h1>
+      <p class="lede">The camera will stop and your API key will be cleared from memory. There is no recording to delete.</p>
+      <div class="card-actions">
+        <button class="text-btn" id="confirm-cancel" type="button">Stay</button>
+        <button class="btn-clay" id="confirm-end" type="button">End session</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="dist/renderer.js"></script>
+</body>
+</html>

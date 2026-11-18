@@ -1,0 +1,117 @@
+{
+  "name": "kin-living-portrait",
+  "productName": "Kin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A consent-first living portrait that listens to your pulse and breath with the SmartSpectra SDK.",
+  "author": "amdn77",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "postinstall": "node scripts/ensure-electron.cjs && node scripts/prepare-native.cjs",
+    "build": "node scripts/clean-dist.cjs && node scripts/prepare-native.cjs && esbuild src/renderer.js src/stage.js --bundle --outdir=dist --platform=browser --format=iife --target=chrome120 --log-level=warning",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "pack": "npm run build && electron-builder --win --dir",
+    "dist": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "@smartspectra/node-sdk": "3.5.0"
+  },
+  "devDependencies": {
+    "electron": "42.3.0",
+    "electron-builder": "26.6.0",
+    "esbuild": "0.25.0"
+  },
+  "allowScripts": {
+    "electron@42.3.0": true,
+    "esbuild@0.25.0": true,
+    "koffi@2.16.3": true,
+    "protobufjs@7.6.6": true
+  },
+  "build": {
+    "appId": "com.kin.livingportrait",
+    "productName": "Kin",
+    "copyright": "Copyright \u00a9 2026 amdn77",
+    "directories": {
+      "output": "release"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "files": [
+      "main.js",
+      "index.html",
+      "stage.html",
+      "styles.css",
+      "src/preload-studio.js",
+      "dist/**",
+      "assets/**",
+      "build/icon.png",
+      "package.json",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md",
+      "third_party/**",
+      "node_modules/**",
+      "!node_modules/@smartspectra/node-sdk-darwin-*/**",
+      "!node_modules/@smartspectra/node-sdk-linux-*/**",
+      "!node_modules/@smartspectra/node-sdk-win32-x64/**",
+      "!node_modules/@smartspectra/node-sdk/docs/**",
+      "!node_modules/@smartspectra/node-sdk/samples/**",
+      "!node_modules/@smartspectra/node-sdk/test/**",
+      "!node_modules/@smartspectra/node-sdk/scripts/**",
+      "!node_modules/electron/**",
+      "!node_modules/electron-builder/**",
+      "!node_modules/esbuild/**",
+      "!node_modules/@esbuild/**"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/koffi/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "extraResources": [
+        {
+          "from": "node_modules/@smartspectra/node-sdk-win32-x64/",
+          "to": "smartspectra/"
+        }
+      ],
+      "extraFiles": [
+        {
+          "from": "vendor/vc-runtime/",
+          "to": ".",
+          "filter": [
+            "*.dll"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true,
+      "artifactName": "Kin-${version}-Setup.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "Kin-${version}-Portable.${ext}"
+    }
+  }
+}
