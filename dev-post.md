@@ -12,7 +12,7 @@ The portrait is driven by measured signals, not animation loops. It does not inv
 
 ## Demo
 
-[Demo video on YouTube](https://youtu.be/VIDEO_ID)
+Demo video: pending YouTube upload.
 
 The video shows the consent screen, the key prompt (masked), the live self-view, the live pulse and breathing values, the portrait, and the privacy panel. It ends by stopping the session and showing that the camera stops. The demo was recorded with OBS Studio; Kin has no recording feature. The demo script is in [`demo-script.md`](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/blob/main/demo-script.md).
 

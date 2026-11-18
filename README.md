@@ -12,7 +12,7 @@ Kin writes no video, audio, images, measurements, session history, or API key to
 
 ## The demo
 
-[Demo video](https://youtu.be/VIDEO_ID) · [Release](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/releases/latest) · [Test checklist](TESTING.md) · [Demo script](demo-script.md) · [Recording guide](recording-guide.md)
+Demo video: pending YouTube upload. · [Release](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/releases/latest) · [Test checklist](TESTING.md) · [Demo script](demo-script.md) · [Recording guide](recording-guide.md)
 
 The video is recorded from a live session with a real person in front of the camera. It is not a synthetic signal.
 
@@ -278,7 +278,7 @@ Kin’s own code is MIT licensed. SmartSpectra is proprietary software © Presag
 
 - Challenge: [Presage SmartSpectra SDK Challenge](https://dev.to/challenges/presage-2026-11-04) `#presagechallenge`
 - Repository: <https://github.com/kceehackathon/Kin-presagesmartspectrasdk>
-- Demo video: <https://youtu.be/VIDEO_ID>
+- Demo video: pending YouTube upload.
 - Windows build: [latest release](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/releases/latest) (installer + portable EXE)
 - DEV post: the submission post on DEV, tagged `#presagechallenge` and `#devchallenge`.
 - Solo entry. No Kin account/login or team. A SmartSpectra API key is required; see **Testing for judges**.
