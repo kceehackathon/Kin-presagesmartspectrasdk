@@ -362,7 +362,10 @@ export class SignalEngine {
     const faceTargetAwake = this.entitlements.face && this.faceSeen ? 1 : 0;
     this.faceAwake += (faceTargetAwake - this.faceAwake) * (1 - Math.exp(-step / 0.55));
 
-    const faceK = 1 - Math.exp(-step / 0.28);
+    // Expression windows arrive much less often than video frames. A slow
+    // 0.28s ease made a deliberate expression look like it landed a beat late;
+    // 0.15s still hides classifier jitter but follows the face much closer.
+    const faceK = 1 - Math.exp(-step / 0.15);
     for (const key of Object.keys(this.faceParams)) {
       this.faceParams[key] += (this.faceTarget[key] - this.faceParams[key]) * faceK;
     }

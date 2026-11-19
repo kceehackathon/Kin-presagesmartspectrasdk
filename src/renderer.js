@@ -58,6 +58,9 @@ const els = {
   privacy: $('privacy'),
   privacyClose: $('privacy-close'),
   privacyDone: $('privacy-done'),
+  voiceBtn: $('voice-btn'),
+  voiceOn: document.querySelector('#voice-btn .voice-on'),
+  voiceOff: document.querySelector('#voice-btn .voice-off'),
 
   presentBtn: $('present-btn'),
   presentExit: $('present-exit'),
@@ -106,6 +109,7 @@ const els = {
   consent: $('consent'),
   consentCamera: $('consent-camera'),
   consentFace: $('consent-face'),
+  consentVoice: $('consent-voice'),
   consentMedical: $('consent-medical'),
   consentContinue: $('consent-continue'),
 
@@ -135,6 +139,14 @@ let sessionToken = 0;
 let apiKey = null;
 let operatorKey = null;
 let consentedFace = false;
+
+let voiceEnabled = true;
+let selectedVoice = null;
+let currentValidationCode = null;
+let validationChangedAt = 0;
+let lastSpokenCode = null;
+let lastSpokenAt = 0;
+let lastVoiceAt = 0;
 
 let currentEntitlements = { pulse: true, breath: true, face: false };
 let faceDropped = false;
@@ -288,6 +300,126 @@ function applyValidation(code, hint) {
   if (statusKind === 'paused' || statusKind === 'idle' || statusKind === 'error') return;
   const copy = VALIDATION_COPY[code] || ['Position', hint || 'Hold still in front of the camera.', 'neutral'];
   setValidation(copy[0], copy[1], copy[2]);
+  if (code !== currentValidationCode) {
+    currentValidationCode = code;
+    validationChangedAt = performance.now();
+  }
+}
+
+// Spoken cues are deliberately short and only fire when the SDK reports a
+// sustained positioning problem. They use the operating system's local voice;
+// Kin never opens a microphone or sends audio anywhere. Repeating the same
+// warning is rate-limited so a borderline frame does not produce chatter.
+const VOICE_COPY = {
+  [ValidationCode.kNoFaceFound]: 'Move into view so your face and upper chest are visible.',
+  [ValidationCode.kMultipleFacesFound]: 'One person in view, please.',
+  [ValidationCode.kFaceNotCentered]: 'Center your face in the frame.',
+  [ValidationCode.kFaceSizeOutOfRange]: 'Move a little closer or farther from the camera.',
+  [ValidationCode.kTooDark]: 'Add soft light in front of you.',
+  [ValidationCode.kTooBright]: 'Move away from the bright light.',
+  [ValidationCode.kChestNotVisible]: 'Sit back so your upper chest is visible.',
+  [ValidationCode.kCameraTuning]: 'The camera is settling. Hold still for a moment.',
+  [ValidationCode.kFrameRateTooLow]: 'The camera is running slowly. Improve the light or close other camera apps.',
+  [ValidationCode.kExcessiveMotion]: 'Hold still for a few seconds.',
+  [ValidationCode.kFaceTooClose]: 'Move back so your face and chest fit in the frame.',
+  [ValidationCode.kFaceTooFar]: 'Move a little closer to the camera.',
+  [ValidationCode.kFaceTooHigh]: 'Move down, or tilt the camera up.',
+  [ValidationCode.kFaceTooLow]: 'Move up, or tilt the camera down.',
+  [ValidationCode.kFaceNotForward]: 'Face the camera and relax your shoulders.',
+};
+
+function speechSupported() {
+  return typeof window.speechSynthesis !== 'undefined'
+    && typeof window.SpeechSynthesisUtterance === 'function';
+}
+
+function selectVoice() {
+  if (!speechSupported()) return null;
+  if (selectedVoice) return selectedVoice;
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+
+  const localEnglish = voices.filter((voice) => (
+    voice.localService !== false && /^en([-_]|$)/i.test(voice.lang || '')
+  ));
+  const local = localEnglish.length
+    ? localEnglish
+    : voices.filter((voice) => voice.localService !== false);
+  const preferred = /(Aria|Jenny|Sonia|Guy|Mark|David|Zira|Hazel|George)/i;
+  selectedVoice = local.find((voice) => preferred.test(voice.name || '')) || local[0] || null;
+  return selectedVoice;
+}
+
+function cancelSpeech() {
+  if (!speechSupported()) return;
+  try {
+    window.speechSynthesis.cancel();
+  } catch {
+    /* the operating system voice may be unavailable */
+  }
+}
+
+function speakCue(text) {
+  if (!voiceEnabled || !text || !speechSupported()) return;
+  // Use only a local operating-system voice. If the platform has not exposed
+  // one yet, skip the cue rather than falling back to a network voice.
+  const voice = selectVoice();
+  if (!voice) return;
+  // Cancel a stale warning rather than queueing several corrections behind it.
+  cancelSpeech();
+  const utterance = new window.SpeechSynthesisUtterance(text);
+  utterance.voice = voice;
+  utterance.lang = voice.lang || 'en-US';
+  utterance.rate = 0.94;
+  utterance.pitch = 0.92;
+  utterance.volume = 0.82;
+  try {
+    window.speechSynthesis.speak(utterance);
+  } catch {
+    /* speech is a convenience; never let it interrupt the session */
+  }
+}
+
+function setVoiceEnabled(enabled) {
+  voiceEnabled = Boolean(enabled) && speechSupported();
+  if (!voiceEnabled) cancelSpeech();
+  if (!els.voiceBtn) return;
+  els.voiceBtn.setAttribute('aria-pressed', String(voiceEnabled));
+  els.voiceBtn.setAttribute('aria-label', voiceEnabled ? 'Mute spoken guidance' : 'Turn on spoken guidance');
+  els.voiceBtn.title = voiceEnabled ? 'Spoken guidance is on' : 'Spoken guidance is muted';
+  if (els.voiceOn) els.voiceOn.hidden = !voiceEnabled;
+  if (els.voiceOff) els.voiceOff.hidden = voiceEnabled;
+}
+
+function resetVoiceCues() {
+  cancelSpeech();
+  currentValidationCode = null;
+  validationChangedAt = 0;
+  lastSpokenCode = null;
+  lastSpokenAt = 0;
+  lastVoiceAt = 0;
+}
+
+function maybeSpeakValidation(now) {
+  if (!voiceEnabled || statusKind !== 'listening' || overlayOpen()) return;
+  const code = currentValidationCode;
+  if (code == null) return;
+  if (code === ValidationCode.kOk) {
+    if (window.speechSynthesis && window.speechSynthesis.speaking) cancelSpeech();
+    return;
+  }
+  const text = VOICE_COPY[code];
+  if (!text) return;
+
+  const settleDelay = code === ValidationCode.kCameraTuning ? 2200 : 1000;
+  if (now - validationChangedAt < settleDelay) return;
+  if (now - lastVoiceAt < 1800) return;
+  if (lastSpokenCode === code && now - lastSpokenAt < 9000) return;
+
+  lastSpokenCode = code;
+  lastSpokenAt = now;
+  lastVoiceAt = now;
+  speakCue(text);
 }
 
 const ERROR_COPY = {
@@ -600,7 +732,10 @@ function requestedMetrics(entitlements) {
   return codes;
 }
 
+const PREVIEW_WIDTH = 640;
+const PREVIEW_HEIGHT = 480;
 let previewContext = null;
+let previewImageData = null;
 
 function clearPreview() {
   const canvas = els.stagePreview;
@@ -610,9 +745,10 @@ function clearPreview() {
   previewContext.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-// The native SDK owns the camera and sends its processed frame here. This is
-// a display path only: the renderer never reads pixels back, so it cannot
-// starve the measurement pipeline the way the old frame pump did.
+// The native SDK owns the camera; the main process sends a compact 640x480
+// 4:3 display copy. The crop/downsample below is a defensive fallback for a
+// frame that arrives at another size, using one reused ImageData buffer. It
+// never reads pixels back, so the measurement pipeline keeps its frame budget.
 function paintPreview(event) {
   const canvas = els.stagePreview;
   if (!canvas || !event.width || !event.height) return;
@@ -620,46 +756,55 @@ function paintPreview(event) {
   const { width, height, stride, pixelFormat } = event;
   if (!bytes || !bytes.length) return;
 
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
+  if (canvas.width !== PREVIEW_WIDTH || canvas.height !== PREVIEW_HEIGHT) {
+    canvas.width = PREVIEW_WIDTH;
+    canvas.height = PREVIEW_HEIGHT;
   }
   if (!previewContext) previewContext = canvas.getContext('2d', { alpha: false });
-  const rgba = new Uint8ClampedArray(width * height * 4);
+  if (!previewImageData) {
+    previewImageData = previewContext.createImageData(PREVIEW_WIDTH, PREVIEW_HEIGHT);
+  }
+  const rgba = previewImageData.data;
 
-  if (pixelFormat === 2 || pixelFormat === 3) {
-    const swap = pixelFormat === 3;
-    for (let y = 0; y < height; y += 1) {
-      const srcRow = y * stride;
-      const dstRow = y * width * 4;
-      for (let x = 0; x < width; x += 1) {
-        const src = srcRow + x * 4;
-        const dst = dstRow + x * 4;
-        rgba[dst] = bytes[src + (swap ? 2 : 0)];
-        rgba[dst + 1] = bytes[src + 1];
-        rgba[dst + 2] = bytes[src + (swap ? 0 : 2)];
-        rgba[dst + 3] = 255;
-      }
-    }
-  } else if (pixelFormat === 0 || pixelFormat === 1) {
-    const swap = pixelFormat === 1;
-    for (let y = 0; y < height; y += 1) {
-      const srcRow = y * stride;
-      const dstRow = y * width * 4;
-      for (let x = 0; x < width; x += 1) {
-        const src = srcRow + x * 3;
-        const dst = dstRow + x * 4;
-        rgba[dst] = bytes[src + (swap ? 2 : 0)];
-        rgba[dst + 1] = bytes[src + 1];
-        rgba[dst + 2] = bytes[src + (swap ? 0 : 2)];
-        rgba[dst + 3] = 255;
-      }
-    }
-  } else {
-    return;
+  const channels = pixelFormat === 2 || pixelFormat === 3
+    ? 4
+    : (pixelFormat === 0 || pixelFormat === 1 ? 3 : 0);
+  if (!channels) return;
+  const swap = pixelFormat === 1 || pixelFormat === 3;
+
+  const targetAspect = PREVIEW_WIDTH / PREVIEW_HEIGHT;
+  let cropWidth = width;
+  let cropHeight = height;
+  let cropX = 0;
+  let cropY = 0;
+  if (width / height > targetAspect) {
+    cropWidth = Math.max(1, Math.round(height * targetAspect));
+    cropX = Math.floor((width - cropWidth) / 2);
+  } else if (width / height < targetAspect) {
+    cropHeight = Math.max(1, Math.round(width / targetAspect));
+    cropY = Math.floor((height - cropHeight) / 2);
   }
 
-  previewContext.putImageData(new ImageData(rgba, width, height), 0, 0);
+  const sourceX = new Uint32Array(PREVIEW_WIDTH);
+  for (let x = 0; x < PREVIEW_WIDTH; x += 1) {
+    sourceX[x] = cropX + Math.min(cropWidth - 1, Math.floor((x * cropWidth) / PREVIEW_WIDTH));
+  }
+
+  for (let y = 0; y < PREVIEW_HEIGHT; y += 1) {
+    const sourceY = cropY + Math.min(cropHeight - 1, Math.floor((y * cropHeight) / PREVIEW_HEIGHT));
+    const srcRow = sourceY * stride;
+    const dstRow = y * PREVIEW_WIDTH * 4;
+    for (let x = 0; x < PREVIEW_WIDTH; x += 1) {
+      const src = srcRow + sourceX[x] * channels;
+      const dst = dstRow + x * 4;
+      rgba[dst] = bytes[src + (swap ? 2 : 0)];
+      rgba[dst + 1] = bytes[src + 1];
+      rgba[dst + 2] = bytes[src + (swap ? 0 : 2)];
+      rgba[dst + 3] = 255;
+    }
+  }
+
+  previewContext.putImageData(previewImageData, 0, 0);
 }
 
 function enterMirrorMode() {
@@ -685,6 +830,19 @@ function exitMirrorMode() {
   closeFrame();
 }
 
+function markRunningFromFrame() {
+  // Some SDK builds emit frames and validation before (or without) a
+  // kRunning status callback. A delivered camera frame is proof that capture
+  // is live; use it to leave the waking state instead of leaving the user on
+  // "Waking" with voice guidance and the clock stuck.
+  if (sdkStatus !== 'starting' || statusKind !== 'waking') return;
+  sdkStatus = 'running';
+  setStatus('listening');
+  setPauseUi('pause');
+  startClock();
+  els.endBtn.disabled = false;
+}
+
 function handleSdkEvent(event) {
   if (!event || typeof event.type !== 'string') return;
   if (event.session !== sessionToken) return;
@@ -692,7 +850,9 @@ function handleSdkEvent(event) {
   if (event.type === 'status') {
     const status = event.status;
     if (status === ProcessingStatus.kStarting) {
-      if (statusKind !== 'paused' && statusKind !== 'error') {
+      // A frame or metric can arrive before the SDK's delayed running status.
+      // Do not let a late starting callback pull a live session back to waking.
+      if (sdkStatus !== 'running' && statusKind !== 'paused' && statusKind !== 'error') {
         setStatus('waking');
         setPauseUi('starting');
         els.endBtn.disabled = false;
@@ -730,16 +890,17 @@ function handleSdkEvent(event) {
   }
 
   if (event.type === 'preview') {
+    markRunningFromFrame();
     if (els.app.dataset.mirror === 'on') paintPreview(event);
     return;
   }
 
   if (event.type === 'metrics') {
+    markRunningFromFrame();
     try {
       const bytes = event.buffer instanceof Uint8Array ? event.buffer : new Uint8Array(event.buffer);
       const metrics = decodeMetrics(bytes);
       engine.ingest(metrics, performance.now());
-      if (sdkStatus === 'running' && statusKind === 'waking') setStatus('listening');
     } catch (error) {
       console.error('Kin: could not decode a metrics packet.', error);
     }
@@ -773,6 +934,7 @@ async function startSession() {
   }
 
   sdkStatus = 'starting';
+  resetVoiceCues();
   hideNotice();
   engine.resetSignals();
   engine.setEntitlements(currentEntitlements);
@@ -900,6 +1062,7 @@ async function pauseSession() {
   if (sdkStatus !== 'running' && sdkStatus !== 'starting') return;
   sdkStatus = 'pausing';
   stopClock();
+  cancelSpeech();
   setStatus('paused');
   setPauseUi('pausing');
   els.endBtn.disabled = true;
@@ -927,6 +1090,7 @@ async function endSession() {
   ending = true;
   els.confirm.classList.add('hidden');
   stopClock();
+  resetVoiceCues();
   await teardownSdk();
   sdkStatus = 'idle';
   apiKey = null;
@@ -947,8 +1111,10 @@ async function endSession() {
 
   els.consentCamera.checked = false;
   els.consentFace.checked = false;
+  els.consentVoice.checked = true;
   els.consentMedical.checked = false;
   els.consentContinue.disabled = true;
+  setVoiceEnabled(true);
 
   els.consent.classList.remove('hidden');
   els.keygate.classList.add('hidden');
@@ -1033,6 +1199,7 @@ async function beginFromKey() {
 // --------------------------------------------------------------- overlays
 
 function openPrivacy() {
+  cancelSpeech();
   els.privacy.classList.remove('hidden');
   setTimeout(() => els.privacyClose.focus(), 30);
 }
@@ -1043,6 +1210,7 @@ function closePrivacy() {
 
 function openConfirm() {
   if (statusKind === 'idle') return;
+  cancelSpeech();
   els.confirm.classList.remove('hidden');
   setTimeout(() => els.confirmCancel.focus(), 30);
 }
@@ -1074,6 +1242,7 @@ function togglePresent() {
 // ---------------------------------------------------------------- events
 
 els.consentCamera.addEventListener('change', updateConsentGate);
+els.consentVoice.addEventListener('change', () => setVoiceEnabled(els.consentVoice.checked));
 els.consentMedical.addEventListener('change', updateConsentGate);
 
 function updateConsentGate() {
@@ -1083,11 +1252,17 @@ function updateConsentGate() {
 els.consentContinue.addEventListener('click', () => {
   if (els.consentContinue.disabled) return;
   consentedFace = els.consentFace.checked;
+  setVoiceEnabled(els.consentVoice.checked);
   if (operatorKey) {
     beginWithKey(operatorKey);
   } else {
     showKeyGate('');
   }
+});
+
+els.voiceBtn.addEventListener('click', () => {
+  setVoiceEnabled(!voiceEnabled);
+  if (appScreen === 'consent') els.consentVoice.checked = voiceEnabled;
 });
 
 els.keyReveal.addEventListener('click', () => {
@@ -1213,6 +1388,7 @@ if (typeof BroadcastChannel === 'function') {
 }
 
 window.addEventListener('beforeunload', () => {
+  cancelSpeech();
   if (window.kin && typeof window.kin.sendSdkCommand === 'function') {
     window.kin.sendSdkCommand({ type: 'stop', session: sessionToken + 1 });
   }
@@ -1233,7 +1409,7 @@ function loop(now) {
   // The native SDK owns the camera and the frame budget. The studio only
   // paints the preview frames it receives and the light signal UI, while the
   // portrait window renders the same state in its own renderer process.
-  if (now - lastPortraitPaint >= 100) {
+  if (now - lastPortraitPaint >= 33) {
     const dt = Math.min(0.1, Math.max(0.001, (now - lastFrameAt) / 1000));
     lastFrameAt = now;
     engine.tick(dt, now);
@@ -1241,10 +1417,12 @@ function loop(now) {
     lastPortraitPaint = now;
   }
 
-  if (now - lastUiPaint > 250) {
+  if (now - lastUiPaint > 180) {
     paintUi(now);
     lastUiPaint = now;
   }
+
+  maybeSpeakValidation(now);
 
   if (frameWindow && !frameWindow.closed && now - lastBroadcast > 33) {
     broadcastState(now);
@@ -1268,5 +1446,16 @@ engine.setEntitlements({ pulse: true, breath: true, face: false });
 setStatus('idle');
 setPauseUi('off');
 setValidation('Position', 'Waiting for the first frame.', 'neutral');
+if (speechSupported()) {
+  setVoiceEnabled(els.consentVoice.checked);
+  window.speechSynthesis.onvoiceschanged = () => {
+    selectedVoice = null;
+  };
+} else {
+  voiceEnabled = false;
+  els.consentVoice.checked = false;
+  els.consentVoice.disabled = true;
+  els.voiceBtn.hidden = true;
+}
 paintUi();
 requestAnimationFrame(loop);

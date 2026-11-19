@@ -92,6 +92,64 @@ let nativeSessionToken = null;
 let nativeChain = Promise.resolve();
 let lastPreviewAt = 0;
 
+// SmartSpectra's own guidance is to target 30 fps and to keep enough facial
+// detail for expression/blink classification. The SDK's Electron reference
+// camera is 1280x720/30; the earlier 640x480 override was the only place Kin
+// asked for less. Explicit capture requests do not fall back, so keep this
+// common webcam format. The preview is center-cropped to the 4:3 self-view and
+// downsampled in this process, rather than sending a full 720p copy over IPC.
+const CAMERA_CAPTURE = Object.freeze({ width: 1280, height: 720, fps: 30 });
+const PREVIEW_WIDTH = 640;
+const PREVIEW_HEIGHT = 480;
+const PREVIEW_INTERVAL_MS = 40; // 25 fps preview; measurement still runs at 30
+let previewFrame = Buffer.allocUnsafe(PREVIEW_WIDTH * PREVIEW_HEIGHT * 3);
+
+// The SDK captures at 1280x720 so face/chest detail stays high. Sending a
+// full 720p frame across IPC 25 times a second saturates the browser process
+// and can make the whole app feel late, so center-crop to the self-view's 4:3
+// aspect and downsample once here. The renderer receives a compact RGB frame.
+function makePreviewFrame(buffer, width, height, stride, pixelFormat) {
+  const channels = pixelFormat === 2 || pixelFormat === 3
+    ? 4
+    : (pixelFormat === 0 || pixelFormat === 1 ? 3 : 0);
+  if (!channels || !buffer || !buffer.length) return null;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 2 || height < 2) return null;
+  if (!Number.isFinite(stride) || stride < width * channels) return null;
+  const swap = pixelFormat === 1 || pixelFormat === 3;
+
+  const targetAspect = PREVIEW_WIDTH / PREVIEW_HEIGHT;
+  let cropWidth = width;
+  let cropHeight = height;
+  let cropX = 0;
+  let cropY = 0;
+  if (width / height > targetAspect) {
+    cropWidth = Math.max(1, Math.round(height * targetAspect));
+    cropX = Math.floor((width - cropWidth) / 2);
+  } else if (width / height < targetAspect) {
+    cropHeight = Math.max(1, Math.round(width / targetAspect));
+    cropY = Math.floor((height - cropHeight) / 2);
+  }
+
+  const sourceX = new Uint32Array(PREVIEW_WIDTH);
+  for (let x = 0; x < PREVIEW_WIDTH; x += 1) {
+    sourceX[x] = cropX + Math.min(cropWidth - 1, Math.floor((x * cropWidth) / PREVIEW_WIDTH));
+  }
+
+  for (let y = 0; y < PREVIEW_HEIGHT; y += 1) {
+    const sourceY = cropY + Math.min(cropHeight - 1, Math.floor((y * cropHeight) / PREVIEW_HEIGHT));
+    const srcRow = sourceY * stride;
+    const dstRow = y * PREVIEW_WIDTH * 3;
+    for (let x = 0; x < PREVIEW_WIDTH; x += 1) {
+      const src = srcRow + sourceX[x] * channels;
+      const dst = dstRow + x * 3;
+      previewFrame[dst] = buffer[src + (swap ? 2 : 0)];
+      previewFrame[dst + 1] = buffer[src + 1];
+      previewFrame[dst + 2] = buffer[src + (swap ? 0 : 2)];
+    }
+  }
+  return previewFrame;
+}
+
 function sendToStudio(payload) {
   if (!studioWindow || studioWindow.isDestroyed()) return;
   studioWindow.webContents.send('kin:sdk-event', payload);
@@ -160,27 +218,31 @@ async function startNativeSession({ session, apiKey, requestedMetrics }) {
   });
 
   // The native pipeline already renders a processed frame for its own graph.
-  // Reuse it as the self-view: 640x480 RGB at 30 fps from the camera owner,
-  // throttled to ~15 fps for the IPC hop. No second camera reader and no
-  // renderer-side frame pump, so measurement keeps its full frame budget.
+  // Reuse it as the self-view: 1280x720 RGB at 30 fps from the camera owner,
+  // center-cropped and downsampled to 640x480 here, then throttled to 25 fps
+  // for the IPC hop. No second camera reader and no renderer-side frame pump,
+  // so measurement keeps its full frame budget.
   sdk.on('videoOutput', (buffer, width, height, stride, pixelFormat, timestampUs) => {
     if (nativeSessionToken !== session) return;
     const now = Date.now();
-    if (now - lastPreviewAt < 66) return;
+    if (now - lastPreviewAt < PREVIEW_INTERVAL_MS) return;
     lastPreviewAt = now;
+
+    const frame = makePreviewFrame(buffer, width, height, stride, pixelFormat);
+    if (!frame) return;
     sendToStudio({
       type: 'preview',
       session,
-      buffer: toArrayBuffer(buffer),
-      width,
-      height,
-      stride,
-      pixelFormat,
+      buffer: toArrayBuffer(frame),
+      width: PREVIEW_WIDTH,
+      height: PREVIEW_HEIGHT,
+      stride: PREVIEW_WIDTH * 3,
+      pixelFormat: 0,
       timestampUs: Number(timestampUs),
     });
   });
 
-  sdk.useCamera(CameraSelection.default, { width: 640, height: 480, fps: 30 });
+  sdk.useCamera(CameraSelection.default, CAMERA_CAPTURE);
   await sdk.start();
 }
 
