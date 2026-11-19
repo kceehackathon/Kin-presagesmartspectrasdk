@@ -63,7 +63,9 @@ Kin has **no Kin account, login, or cloud service**. The public build requires a
 2. In the public build, run Kin and paste the key at the key prompt. In the keyed build, continue from consent straight to the camera. The key is held in memory for the session and is never written or logged.
 3. The demo video is the fastest no-setup verification of the live signal integration.
 
-The public repository and public installers intentionally contain no key; a client-side key would be extractable. For a no-key judging run, use the private keyed portable build: it carries a local `kin.key` beside the executable and skips the key screen. The operator can also use the `KIN_API_KEY` environment variable or a local `kin.key` file as described below. Contact the author through the DEV submission for the private package. Do not publish a key in the repository or a public release.\n\nThe free Presage trial has a usage allowance. If the studio says **This API key has no credits left**, create a fresh trial key and replace `kin.key`; Kin cannot bypass Presage metering. The currently installed key must be removed or replaced, and the app fully closed and reopened.
+The public repository and public installers intentionally contain no key; a client-side key would be extractable. For a no-key judging run, use the private keyed portable build: it carries a local `kin.key` beside the executable and skips the key screen. The operator can also use the `KIN_API_KEY` environment variable or a local `kin.key` file as described below. Contact the author through the DEV submission for the private package. Do not publish a key in the repository or a public release.
+
+The free Presage trial has a usage allowance. If the studio says **This API key has no credits left**, create a fresh trial key and replace `kin.key`; Kin cannot bypass Presage metering. The currently installed key must be removed or replaced, and the app fully closed and reopened.
 
 ### Run from source
 
@@ -219,7 +221,7 @@ The API key is never part of these files. To remove the technical files on Windo
 
 ### Sharing
 
-**None by Kin.** The app makes no analytics, crash-reporting, or cloud-storage calls. The renderer runs under `connect-src 'none'`, so it cannot open a network connection. The native SDK in the main process makes the required Presage requests: authentication, entitlement/usage verification, and encrypted model artifact fetches. These requests can include the API key and session usage metadata (for example duration and frame counts), and can be correlated with your Presage account. They do **not** contain the camera preview frames, video, audio, or your measured pulse/breathing values. SmartSpectra computes the metrics on-device; Kin itself uploads nothing.
+**No body data is uploaded.** Kin itself makes no analytics, crash-reporting, or cloud-storage calls. The renderer runs under `connect-src 'none'`, so it cannot open a network connection. The native SDK in the main process makes the required Presage requests: authentication, entitlement/usage verification, and encrypted model artifact fetches. These requests can include the API key and session usage metadata (for example duration and frame counts), and can be correlated with your Presage account. They do **not** contain the camera preview frames, video, audio, or your measured pulse/breathing values. SmartSpectra computes the metrics on-device; Kin itself uploads no frames, audio, or measurements.
 
 ### Retention
 
