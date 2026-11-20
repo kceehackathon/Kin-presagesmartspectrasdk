@@ -28,7 +28,7 @@ Do not open the primary webcam in vokoscreenNG "just in case." Test the exact se
 
 1. Download vokoscreenNG from the official page and install it. There is no account or paid tier.
 2. Launch vokoscreenNG. On the **Screen** tab, choose **Fullscreen** and select the display that contains both Kin panels (and the separate portrait window, if it is open). Do not use **Window** for the main recording; it can miss the portrait or the self-view. Do not use **Area** unless you deliberately want to crop.
-3. In the audio device list, check only your microphone. Uncheck monitor or desktop audio. Kin can play short local text-to-speech positioning cues; they are system audio, but the microphone will pick them up from the room and desktop-audio capture is not needed.
+3. This demo is screen-only. Disable microphone and desktop audio capture in vokoscreenNG; Kin has no synthesized speech or app audio.
 4. Set **Frames** to `30`.
 5. Set **Format** to `MP4` and **Video codec** to `H.264`. If vokoscreenNG asks to download the Cisco OpenH264 encoder, accept it. If MP4 with H.264 is not available on your install, record `MKV` with H.264 and convert or remux to MP4 before upload.
 6. Leave **Countdown** at `3` seconds, or set a short countdown. This gives you time to move the pointer away.
@@ -101,6 +101,6 @@ vokoscreenNG: <https://linuxecke.volkoh.de/vokoscreen/vokoscreen.html>
 - Do not use a synthetic pulse or breathing signal to make the portrait move.
 - Do not record a separate camera feed and label it as the live SmartSpectra self-view.
 - Do not enable vokoscreenNG's camera while Kin owns the primary webcam.
-- Do not add medical, diagnosis, treatment, emotion, or stress claims in the voice-over or description.
+- Do not add medical, diagnosis, treatment, emotion, or stress claims in the narration, captions, or description.
 - Do not upload the video as Private and assume judges can open it.
-- Do not describe Kin's spoken positioning cues as a recording or as cloud speech. They are local system text-to-speech; the microphone is never opened by Kin. If a cue plays during the take, either let it finish or mute it with the speaker button and note that in the edit.
+- Kin's positioning cues are on-screen text. Do not describe them as recorded speech or as cloud audio; the microphone is never opened by Kin.

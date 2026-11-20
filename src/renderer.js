@@ -58,10 +58,6 @@ const els = {
   privacy: $('privacy'),
   privacyClose: $('privacy-close'),
   privacyDone: $('privacy-done'),
-  voiceBtn: $('voice-btn'),
-  voiceOn: document.querySelector('#voice-btn .voice-on'),
-  voiceOff: document.querySelector('#voice-btn .voice-off'),
-
   presentBtn: $('present-btn'),
   presentExit: $('present-exit'),
   presentChips: $('present-chips'),
@@ -100,6 +96,7 @@ const els = {
   validation: $('validation'),
   validationLabel: $('validation-label'),
   validationText: $('validation-text'),
+  previewAlert: $('preview-alert'),
 
   pauseBtn: $('pause-btn'),
   pauseIcon: $('pause-icon'),
@@ -109,7 +106,6 @@ const els = {
   consent: $('consent'),
   consentCamera: $('consent-camera'),
   consentFace: $('consent-face'),
-  consentVoice: $('consent-voice'),
   consentMedical: $('consent-medical'),
   consentContinue: $('consent-continue'),
 
@@ -139,14 +135,6 @@ let sessionToken = 0;
 let apiKey = null;
 let operatorKey = null;
 let consentedFace = false;
-
-let voiceEnabled = true;
-let selectedVoice = null;
-let currentValidationCode = null;
-let validationChangedAt = 0;
-let lastSpokenCode = null;
-let lastSpokenAt = 0;
-let lastVoiceAt = 0;
 
 let currentEntitlements = { pulse: true, breath: true, face: false };
 let faceDropped = false;
@@ -275,6 +263,12 @@ function setValidation(label, text, tone = 'neutral') {
   els.validationLabel.textContent = label;
   els.validationText.textContent = text;
   els.validation.dataset.tone = tone;
+  if (els.previewAlert) {
+    const show = tone !== 'ok' && Boolean(text);
+    els.previewAlert.textContent = show ? `${label} — ${text}` : '';
+    els.previewAlert.hidden = !show;
+    els.previewAlert.dataset.tone = tone;
+  }
 }
 
 const VALIDATION_COPY = {
@@ -287,7 +281,7 @@ const VALIDATION_COPY = {
   [ValidationCode.kTooBright]: ['Too bright', 'Move out of direct light or soften it.', 'warn'],
   [ValidationCode.kChestNotVisible]: ['Chest not in frame', 'Sit back so your chest and shoulders are visible.', 'warn'],
   [ValidationCode.kCameraTuning]: ['Camera', 'Letting the camera settle. This can take a moment.', 'neutral'],
-  [ValidationCode.kFrameRateTooLow]: ['Low frame rate', 'Close other camera apps, then try again.', 'warn'],
+  [ValidationCode.kFrameRateTooLow]: ['Low frame rate', 'Add light in front of you or close other camera apps, then try again.', 'warn'],
   [ValidationCode.kExcessiveMotion]: ['Too much movement', 'Rest gently and hold still for a few seconds.', 'warn'],
   [ValidationCode.kFaceTooClose]: ['A little too close', 'Move back so your head and chest are in frame.', 'warn'],
   [ValidationCode.kFaceTooFar]: ['A little too far', 'Move closer to the camera.', 'warn'],
@@ -300,126 +294,6 @@ function applyValidation(code, hint) {
   if (statusKind === 'paused' || statusKind === 'idle' || statusKind === 'error') return;
   const copy = VALIDATION_COPY[code] || ['Position', hint || 'Hold still in front of the camera.', 'neutral'];
   setValidation(copy[0], copy[1], copy[2]);
-  if (code !== currentValidationCode) {
-    currentValidationCode = code;
-    validationChangedAt = performance.now();
-  }
-}
-
-// Spoken cues are deliberately short and only fire when the SDK reports a
-// sustained positioning problem. They use the operating system's local voice;
-// Kin never opens a microphone or sends audio anywhere. Repeating the same
-// warning is rate-limited so a borderline frame does not produce chatter.
-const VOICE_COPY = {
-  [ValidationCode.kNoFaceFound]: 'Move into view so your face and upper chest are visible.',
-  [ValidationCode.kMultipleFacesFound]: 'One person in view, please.',
-  [ValidationCode.kFaceNotCentered]: 'Center your face in the frame.',
-  [ValidationCode.kFaceSizeOutOfRange]: 'Move a little closer or farther from the camera.',
-  [ValidationCode.kTooDark]: 'Add soft light in front of you.',
-  [ValidationCode.kTooBright]: 'Move away from the bright light.',
-  [ValidationCode.kChestNotVisible]: 'Sit back so your upper chest is visible.',
-  [ValidationCode.kCameraTuning]: 'The camera is settling. Hold still for a moment.',
-  [ValidationCode.kFrameRateTooLow]: 'The camera is running slowly. Improve the light or close other camera apps.',
-  [ValidationCode.kExcessiveMotion]: 'Hold still for a few seconds.',
-  [ValidationCode.kFaceTooClose]: 'Move back so your face and chest fit in the frame.',
-  [ValidationCode.kFaceTooFar]: 'Move a little closer to the camera.',
-  [ValidationCode.kFaceTooHigh]: 'Move down, or tilt the camera up.',
-  [ValidationCode.kFaceTooLow]: 'Move up, or tilt the camera down.',
-  [ValidationCode.kFaceNotForward]: 'Face the camera and relax your shoulders.',
-};
-
-function speechSupported() {
-  return typeof window.speechSynthesis !== 'undefined'
-    && typeof window.SpeechSynthesisUtterance === 'function';
-}
-
-function selectVoice() {
-  if (!speechSupported()) return null;
-  if (selectedVoice) return selectedVoice;
-  const voices = window.speechSynthesis.getVoices();
-  if (!voices.length) return null;
-
-  const localEnglish = voices.filter((voice) => (
-    voice.localService !== false && /^en([-_]|$)/i.test(voice.lang || '')
-  ));
-  const local = localEnglish.length
-    ? localEnglish
-    : voices.filter((voice) => voice.localService !== false);
-  const preferred = /(Aria|Jenny|Sonia|Guy|Mark|David|Zira|Hazel|George)/i;
-  selectedVoice = local.find((voice) => preferred.test(voice.name || '')) || local[0] || null;
-  return selectedVoice;
-}
-
-function cancelSpeech() {
-  if (!speechSupported()) return;
-  try {
-    window.speechSynthesis.cancel();
-  } catch {
-    /* the operating system voice may be unavailable */
-  }
-}
-
-function speakCue(text) {
-  if (!voiceEnabled || !text || !speechSupported()) return;
-  // Use only a local operating-system voice. If the platform has not exposed
-  // one yet, skip the cue rather than falling back to a network voice.
-  const voice = selectVoice();
-  if (!voice) return;
-  // Cancel a stale warning rather than queueing several corrections behind it.
-  cancelSpeech();
-  const utterance = new window.SpeechSynthesisUtterance(text);
-  utterance.voice = voice;
-  utterance.lang = voice.lang || 'en-US';
-  utterance.rate = 0.94;
-  utterance.pitch = 0.92;
-  utterance.volume = 0.82;
-  try {
-    window.speechSynthesis.speak(utterance);
-  } catch {
-    /* speech is a convenience; never let it interrupt the session */
-  }
-}
-
-function setVoiceEnabled(enabled) {
-  voiceEnabled = Boolean(enabled) && speechSupported();
-  if (!voiceEnabled) cancelSpeech();
-  if (!els.voiceBtn) return;
-  els.voiceBtn.setAttribute('aria-pressed', String(voiceEnabled));
-  els.voiceBtn.setAttribute('aria-label', voiceEnabled ? 'Mute spoken guidance' : 'Turn on spoken guidance');
-  els.voiceBtn.title = voiceEnabled ? 'Spoken guidance is on' : 'Spoken guidance is muted';
-  if (els.voiceOn) els.voiceOn.hidden = !voiceEnabled;
-  if (els.voiceOff) els.voiceOff.hidden = voiceEnabled;
-}
-
-function resetVoiceCues() {
-  cancelSpeech();
-  currentValidationCode = null;
-  validationChangedAt = 0;
-  lastSpokenCode = null;
-  lastSpokenAt = 0;
-  lastVoiceAt = 0;
-}
-
-function maybeSpeakValidation(now) {
-  if (!voiceEnabled || statusKind !== 'listening' || overlayOpen()) return;
-  const code = currentValidationCode;
-  if (code == null) return;
-  if (code === ValidationCode.kOk) {
-    if (window.speechSynthesis && window.speechSynthesis.speaking) cancelSpeech();
-    return;
-  }
-  const text = VOICE_COPY[code];
-  if (!text) return;
-
-  const settleDelay = code === ValidationCode.kCameraTuning ? 2200 : 1000;
-  if (now - validationChangedAt < settleDelay) return;
-  if (now - lastVoiceAt < 1800) return;
-  if (lastSpokenCode === code && now - lastSpokenAt < 9000) return;
-
-  lastSpokenCode = code;
-  lastSpokenAt = now;
-  lastVoiceAt = now;
-  speakCue(text);
 }
 
 const ERROR_COPY = {
@@ -732,23 +606,149 @@ function requestedMetrics(entitlements) {
   return codes;
 }
 
-const PREVIEW_WIDTH = 640;
-const PREVIEW_HEIGHT = 480;
+const PREVIEW_WIDTH = 480;
+const PREVIEW_HEIGHT = 360;
+let previewGl = null;
+let previewGlTexture = null;
+let previewGlWidth = 0;
+let previewGlHeight = 0;
 let previewContext = null;
 let previewImageData = null;
+let pendingPreview = null;
+let previewRaf = 0;
+
+// 2D putImageData is a CPU raster upload. On this two-core laptop it competes
+// directly with the SmartSpectra measurement thread, which is what produced the
+// late, choppy self-view. Use WebGL for the normal RGBA frame: the texture
+// upload is done by the GPU process and the studio thread only issues a draw.
+// A 2D path remains as a fallback for machines without WebGL.
+function setupPreviewGl() {
+  const canvas = els.stagePreview;
+  if (!canvas) return false;
+  const attributes = {
+    alpha: false,
+    antialias: false,
+    depth: false,
+    stencil: false,
+    desynchronized: true,
+    preserveDrawingBuffer: false,
+    powerPreference: 'high-performance',
+  };
+  let gl = null;
+  try {
+    gl = canvas.getContext('webgl', attributes);
+  } catch {
+    gl = null;
+  }
+  if (!gl) return false;
+
+  const vertexSource = 'attribute vec2 a_pos; varying vec2 v_uv; void main() { v_uv = vec2((a_pos.x + 1.0) * 0.5, 1.0 - (a_pos.y + 1.0) * 0.5); gl_Position = vec4(a_pos, 0.0, 1.0); }';
+  const fragmentSource = 'precision mediump float; varying vec2 v_uv; uniform sampler2D u_frame; void main() { gl_FragColor = texture2D(u_frame, v_uv); }';
+  function compile(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(shader) || 'shader compile failed');
+    }
+    return shader;
+  }
+
+  try {
+    const program = gl.createProgram();
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(program) || 'shader link failed');
+    }
+    gl.useProgram(program);
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, 'a_pos');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+    previewGlTexture = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, previewGlTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.uniform1i(gl.getUniformLocation(program, 'u_frame'), 0);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    previewGl = gl;
+    return true;
+  } catch (error) {
+    console.error('Kin: WebGL preview unavailable', error);
+    previewGl = null;
+    return false;
+  }
+}
+
+function paintPreviewGl(bytes, width, height) {
+  const gl = previewGl;
+  if (!gl) return false;
+  const canvas = els.stagePreview;
+  if (!canvas) return false;
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+    gl.viewport(0, 0, width, height);
+  }
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, previewGlTexture);
+  if (previewGlWidth !== width || previewGlHeight !== height) {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
+    previewGlWidth = width;
+    previewGlHeight = height;
+  } else {
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
+  }
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  return true;
+}
 
 function clearPreview() {
+  pendingPreview = null;
+  if (previewRaf) {
+    cancelAnimationFrame(previewRaf);
+    previewRaf = 0;
+  }
+  if (previewGl) {
+    previewGl.clearColor(0.043, 0.035, 0.031, 1);
+    previewGl.clear(previewGl.COLOR_BUFFER_BIT);
+    previewGlWidth = 0;
+    previewGlHeight = 0;
+    return;
+  }
   const canvas = els.stagePreview;
   if (!canvas) return;
-  if (!previewContext) previewContext = canvas.getContext('2d', { alpha: false });
+  if (!previewContext) previewContext = canvas.getContext('2d', { alpha: false, desynchronized: true });
+  if (!previewContext) return;
   previewContext.fillStyle = '#0b0908';
   previewContext.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-// The native SDK owns the camera; the main process sends a compact 640x480
-// 4:3 display copy. The crop/downsample below is a defensive fallback for a
-// frame that arrives at another size, using one reused ImageData buffer. It
-// never reads pixels back, so the measurement pipeline keeps its frame budget.
+// Coalesce preview packets to the next display frame. The measurement thread
+// can deliver faster than the compositor; keeping only the newest packet means
+// a slow paint drops stale frames instead of building a visible queue.
+function queuePreview(event) {
+  pendingPreview = event;
+  if (!previewRaf) previewRaf = requestAnimationFrame(paintQueuedPreview);
+}
+
+function paintQueuedPreview() {
+  previewRaf = 0;
+  const event = pendingPreview;
+  pendingPreview = null;
+  if (event && els.app.dataset.mirror === 'on') paintPreview(event);
+}
+
 function paintPreview(event) {
   const canvas = els.stagePreview;
   if (!canvas || !event.width || !event.height) return;
@@ -756,21 +756,22 @@ function paintPreview(event) {
   const { width, height, stride, pixelFormat } = event;
   if (!bytes || !bytes.length) return;
 
-  if (canvas.width !== PREVIEW_WIDTH || canvas.height !== PREVIEW_HEIGHT) {
+  // The main process sends ready-to-display RGBA at the native 4:3 size.
+  if (pixelFormat === 2 && stride === width * 4 && bytes.length >= width * height * 4) {
+    if (!previewGl) setupPreviewGl();
+    if (previewGl && paintPreviewGl(bytes, width, height)) return;
+  }
+
+  if (!previewContext) {
     canvas.width = PREVIEW_WIDTH;
     canvas.height = PREVIEW_HEIGHT;
+    previewContext = canvas.getContext('2d', { alpha: false, desynchronized: true });
   }
-  if (!previewContext) previewContext = canvas.getContext('2d', { alpha: false });
-  if (!previewImageData) {
-    previewImageData = previewContext.createImageData(PREVIEW_WIDTH, PREVIEW_HEIGHT);
-  }
+  if (!previewContext) return;
+  if (!previewImageData) previewImageData = previewContext.createImageData(PREVIEW_WIDTH, PREVIEW_HEIGHT);
   const rgba = previewImageData.data;
-
-  const channels = pixelFormat === 2 || pixelFormat === 3
-    ? 4
-    : (pixelFormat === 0 || pixelFormat === 1 ? 3 : 0);
+  const channels = pixelFormat === 2 || pixelFormat === 3 ? 4 : (pixelFormat === 0 || pixelFormat === 1 ? 3 : 0);
   if (!channels) return;
-  const swap = pixelFormat === 1 || pixelFormat === 3;
 
   const targetAspect = PREVIEW_WIDTH / PREVIEW_HEIGHT;
   let cropWidth = width;
@@ -789,7 +790,7 @@ function paintPreview(event) {
   for (let x = 0; x < PREVIEW_WIDTH; x += 1) {
     sourceX[x] = cropX + Math.min(cropWidth - 1, Math.floor((x * cropWidth) / PREVIEW_WIDTH));
   }
-
+  const swap = pixelFormat === 1 || pixelFormat === 3;
   for (let y = 0; y < PREVIEW_HEIGHT; y += 1) {
     const sourceY = cropY + Math.min(cropHeight - 1, Math.floor((y * cropHeight) / PREVIEW_HEIGHT));
     const srcRow = sourceY * stride;
@@ -803,15 +804,13 @@ function paintPreview(event) {
       rgba[dst + 3] = 255;
     }
   }
-
   previewContext.putImageData(previewImageData, 0, 0);
 }
 
 function enterMirrorMode() {
-  // The companion portrait only opens when the display can hold it beside the
-  // studio. On smaller displays the studio shows the portrait and the live
-  // self-view together, so the rail and End action stay accessible.
-  if (companionFits() && (!frameWindow || frameWindow.closed)) openFrame();
+  // The studio portrait uses compositor-driven CSS for pulse and breath, so
+  // it can stay beside the self-view without the extra renderer window. The
+  // full companion remains available on demand from the header or F.
   els.app.dataset.mirror = 'on';
   // Keep the studio focused; the portrait window is a companion, not a
   // second thing to manage. It opens to the right of the studio when there is room.
@@ -834,7 +833,7 @@ function markRunningFromFrame() {
   // Some SDK builds emit frames and validation before (or without) a
   // kRunning status callback. A delivered camera frame is proof that capture
   // is live; use it to leave the waking state instead of leaving the user on
-  // "Waking" with voice guidance and the clock stuck.
+  // "Waking" with the clock stuck.
   if (sdkStatus !== 'starting' || statusKind !== 'waking') return;
   sdkStatus = 'running';
   setStatus('listening');
@@ -891,7 +890,7 @@ function handleSdkEvent(event) {
 
   if (event.type === 'preview') {
     markRunningFromFrame();
-    if (els.app.dataset.mirror === 'on') paintPreview(event);
+    if (els.app.dataset.mirror === 'on') queuePreview(event);
     return;
   }
 
@@ -934,7 +933,6 @@ async function startSession() {
   }
 
   sdkStatus = 'starting';
-  resetVoiceCues();
   hideNotice();
   engine.resetSignals();
   engine.setEntitlements(currentEntitlements);
@@ -1062,7 +1060,6 @@ async function pauseSession() {
   if (sdkStatus !== 'running' && sdkStatus !== 'starting') return;
   sdkStatus = 'pausing';
   stopClock();
-  cancelSpeech();
   setStatus('paused');
   setPauseUi('pausing');
   els.endBtn.disabled = true;
@@ -1090,7 +1087,6 @@ async function endSession() {
   ending = true;
   els.confirm.classList.add('hidden');
   stopClock();
-  resetVoiceCues();
   await teardownSdk();
   sdkStatus = 'idle';
   apiKey = null;
@@ -1111,10 +1107,9 @@ async function endSession() {
 
   els.consentCamera.checked = false;
   els.consentFace.checked = false;
-  els.consentVoice.checked = true;
   els.consentMedical.checked = false;
   els.consentContinue.disabled = true;
-  setVoiceEnabled(true);
+  if (els.previewAlert) els.previewAlert.hidden = true;
 
   els.consent.classList.remove('hidden');
   els.keygate.classList.add('hidden');
@@ -1199,7 +1194,6 @@ async function beginFromKey() {
 // --------------------------------------------------------------- overlays
 
 function openPrivacy() {
-  cancelSpeech();
   els.privacy.classList.remove('hidden');
   setTimeout(() => els.privacyClose.focus(), 30);
 }
@@ -1210,7 +1204,6 @@ function closePrivacy() {
 
 function openConfirm() {
   if (statusKind === 'idle') return;
-  cancelSpeech();
   els.confirm.classList.remove('hidden');
   setTimeout(() => els.confirmCancel.focus(), 30);
 }
@@ -1242,7 +1235,6 @@ function togglePresent() {
 // ---------------------------------------------------------------- events
 
 els.consentCamera.addEventListener('change', updateConsentGate);
-els.consentVoice.addEventListener('change', () => setVoiceEnabled(els.consentVoice.checked));
 els.consentMedical.addEventListener('change', updateConsentGate);
 
 function updateConsentGate() {
@@ -1252,17 +1244,11 @@ function updateConsentGate() {
 els.consentContinue.addEventListener('click', () => {
   if (els.consentContinue.disabled) return;
   consentedFace = els.consentFace.checked;
-  setVoiceEnabled(els.consentVoice.checked);
   if (operatorKey) {
     beginWithKey(operatorKey);
   } else {
     showKeyGate('');
   }
-});
-
-els.voiceBtn.addEventListener('click', () => {
-  setVoiceEnabled(!voiceEnabled);
-  if (appScreen === 'consent') els.consentVoice.checked = voiceEnabled;
 });
 
 els.keyReveal.addEventListener('click', () => {
@@ -1388,7 +1374,6 @@ if (typeof BroadcastChannel === 'function') {
 }
 
 window.addEventListener('beforeunload', () => {
-  cancelSpeech();
   if (window.kin && typeof window.kin.sendSdkCommand === 'function') {
     window.kin.sendSdkCommand({ type: 'stop', session: sessionToken + 1 });
   }
@@ -1409,11 +1394,14 @@ function loop(now) {
   // The native SDK owns the camera and the frame budget. The studio only
   // paints the preview frames it receives and the light signal UI, while the
   // portrait window renders the same state in its own renderer process.
-  if (now - lastPortraitPaint >= 33) {
-    const dt = Math.min(0.1, Math.max(0.001, (now - lastFrameAt) / 1000));
+  if (now - lastPortraitPaint >= 250) {
+    const dt = Math.min(0.3, Math.max(0.001, (now - lastFrameAt) / 1000));
     lastFrameAt = now;
     engine.tick(dt, now);
-    if (els.app.dataset.mirror !== 'on') portrait.render(engine.getRenderState());
+    // The studio portrait is the living portrait when the optional companion
+    // window is closed. Keep it animating in place; the guest frame window
+    // renders its own copy when it is open.
+    if (!frameWindow || frameWindow.closed) portrait.render(engine.getRenderState());
     lastPortraitPaint = now;
   }
 
@@ -1422,9 +1410,7 @@ function loop(now) {
     lastUiPaint = now;
   }
 
-  maybeSpeakValidation(now);
-
-  if (frameWindow && !frameWindow.closed && now - lastBroadcast > 33) {
+  if (frameWindow && !frameWindow.closed && now - lastBroadcast > 100) {
     broadcastState(now);
     lastBroadcast = now;
   } else if (frameWindow && frameWindow.closed) {
@@ -1442,20 +1428,11 @@ if (window.kin && typeof window.kin.onSdkEvent === 'function') {
   console.error('Kin: camera bridge unavailable.');
 }
 
+setupPreviewGl();
 engine.setEntitlements({ pulse: true, breath: true, face: false });
 setStatus('idle');
 setPauseUi('off');
 setValidation('Position', 'Waiting for the first frame.', 'neutral');
-if (speechSupported()) {
-  setVoiceEnabled(els.consentVoice.checked);
-  window.speechSynthesis.onvoiceschanged = () => {
-    selectedVoice = null;
-  };
-} else {
-  voiceEnabled = false;
-  els.consentVoice.checked = false;
-  els.consentVoice.disabled = true;
-  els.voiceBtn.hidden = true;
-}
+if (els.previewAlert) els.previewAlert.hidden = true;
 paintUi();
 requestAnimationFrame(loop);

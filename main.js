@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow, Menu, session, shell, screen, ipcMain } = require('electron');
@@ -90,7 +91,8 @@ let studioWindow = null;
 let nativeSdk = null;
 let nativeSessionToken = null;
 let nativeChain = Promise.resolve();
-let lastPreviewAt = 0;
+let lastVideoAt = 0;
+let previewCredit = 0;
 
 // SmartSpectra's own guidance is to target 30 fps and to keep enough facial
 // detail for expression/blink classification. The SDK's Electron reference
@@ -99,15 +101,25 @@ let lastPreviewAt = 0;
 // common webcam format. The preview is center-cropped to the 4:3 self-view and
 // downsampled in this process, rather than sending a full 720p copy over IPC.
 const CAMERA_CAPTURE = Object.freeze({ width: 1280, height: 720, fps: 30 });
-const PREVIEW_WIDTH = 640;
-const PREVIEW_HEIGHT = 480;
-const PREVIEW_INTERVAL_MS = 40; // 25 fps preview; measurement still runs at 30
-let previewFrame = Buffer.allocUnsafe(PREVIEW_WIDTH * PREVIEW_HEIGHT * 3);
+
+// The measurement camera stays at its full 1280x720/30 profile. Only the
+// self-view display copy scales with the machine: four logical cores or fewer
+// get a smaller, slightly slower copy so the measurement thread keeps its
+// budget; larger machines get the full 480x360 copy. KIN_PREVIEW_PROFILE=high
+// or low overrides the automatic choice for a specific demo machine.
+const PREVIEW_PROFILE = process.env.KIN_PREVIEW_PROFILE === 'high'
+  ? 'high'
+  : (process.env.KIN_PREVIEW_PROFILE === 'low' ? 'low' : (os.cpus().length <= 4 ? 'low' : 'high'));
+const PREVIEW_WIDTH = PREVIEW_PROFILE === 'high' ? 480 : 320;
+const PREVIEW_HEIGHT = PREVIEW_PROFILE === 'high' ? 360 : 240;
+const PREVIEW_INTERVAL_MS = PREVIEW_PROFILE === 'high' ? 25 : 40; // 30 fps high, ~24 fps low
+let previewFrame = Buffer.allocUnsafe(PREVIEW_WIDTH * PREVIEW_HEIGHT * 4);
 
 // The SDK captures at 1280x720 so face/chest detail stays high. Sending a
 // full 720p frame across IPC 25 times a second saturates the browser process
 // and can make the whole app feel late, so center-crop to the self-view's 4:3
-// aspect and downsample once here. The renderer receives a compact RGB frame.
+// aspect and downsample once here. The renderer receives a compact RGBA frame
+// that it can hand straight to ImageData without another per-pixel pass.
 function makePreviewFrame(buffer, width, height, stride, pixelFormat) {
   const channels = pixelFormat === 2 || pixelFormat === 3
     ? 4
@@ -138,13 +150,14 @@ function makePreviewFrame(buffer, width, height, stride, pixelFormat) {
   for (let y = 0; y < PREVIEW_HEIGHT; y += 1) {
     const sourceY = cropY + Math.min(cropHeight - 1, Math.floor((y * cropHeight) / PREVIEW_HEIGHT));
     const srcRow = sourceY * stride;
-    const dstRow = y * PREVIEW_WIDTH * 3;
+    const dstRow = y * PREVIEW_WIDTH * 4;
     for (let x = 0; x < PREVIEW_WIDTH; x += 1) {
       const src = srcRow + sourceX[x] * channels;
-      const dst = dstRow + x * 3;
+      const dst = dstRow + x * 4;
       previewFrame[dst] = buffer[src + (swap ? 2 : 0)];
       previewFrame[dst + 1] = buffer[src + 1];
       previewFrame[dst + 2] = buffer[src + (swap ? 0 : 2)];
+      previewFrame[dst + 3] = 255;
     }
   }
   return previewFrame;
@@ -196,7 +209,8 @@ async function startNativeSession({ session, apiKey, requestedMetrics }) {
 
   nativeSdk = sdk;
   nativeSessionToken = session;
-  lastPreviewAt = 0;
+  lastVideoAt = 0;
+  previewCredit = 0;
 
   sdk.on('processingStatus', (status) => {
     if (nativeSessionToken === session) sendToStudio({ type: 'status', session, status });
@@ -219,14 +233,17 @@ async function startNativeSession({ session, apiKey, requestedMetrics }) {
 
   // The native pipeline already renders a processed frame for its own graph.
   // Reuse it as the self-view: 1280x720 RGB at 30 fps from the camera owner,
-  // center-cropped and downsampled to 640x480 here, then throttled to 25 fps
+  // center-cropped and downsampled to the self-view profile here, then capped
   // for the IPC hop. No second camera reader and no renderer-side frame pump,
   // so measurement keeps its full frame budget.
   sdk.on('videoOutput', (buffer, width, height, stride, pixelFormat, timestampUs) => {
     if (nativeSessionToken !== session) return;
     const now = Date.now();
-    if (now - lastPreviewAt < PREVIEW_INTERVAL_MS) return;
-    lastPreviewAt = now;
+    const elapsed = lastVideoAt ? Math.min(200, now - lastVideoAt) : PREVIEW_INTERVAL_MS;
+    lastVideoAt = now;
+    previewCredit += elapsed;
+    if (previewCredit < PREVIEW_INTERVAL_MS) return;
+    previewCredit = Math.min(previewCredit - PREVIEW_INTERVAL_MS, PREVIEW_INTERVAL_MS);
 
     const frame = makePreviewFrame(buffer, width, height, stride, pixelFormat);
     if (!frame) return;
@@ -236,8 +253,8 @@ async function startNativeSession({ session, apiKey, requestedMetrics }) {
       buffer: toArrayBuffer(frame),
       width: PREVIEW_WIDTH,
       height: PREVIEW_HEIGHT,
-      stride: PREVIEW_WIDTH * 3,
-      pixelFormat: 0,
+      stride: PREVIEW_WIDTH * 4,
+      pixelFormat: 2,
       timestampUs: Number(timestampUs),
     });
   });

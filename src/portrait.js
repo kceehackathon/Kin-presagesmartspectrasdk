@@ -196,6 +196,11 @@ function makeMotes(count) {
 export function mountPortrait(container) {
   container.innerHTML = SVG;
 
+  const pulseGlow = document.createElement('div');
+  pulseGlow.className = 'portrait-pulse';
+  pulseGlow.setAttribute('aria-hidden', 'true');
+  container.appendChild(pulseGlow);
+
   const $ = (id) => container.querySelector(`#${id}`);
   const els = {
     ambient: $('ambient'),
@@ -227,25 +232,23 @@ export function mountPortrait(container) {
     circle.setAttribute('cy', mote.y.toFixed(2));
     circle.setAttribute('r', mote.r.toFixed(2));
     circle.setAttribute('fill', '#f7d7ad');
+    circle.setAttribute('opacity', (0.035 + 0.22 * mote.opacity).toFixed(3));
     els.motes.appendChild(circle);
     return circle;
   });
 
-  const start = performance.now();
-  let renderCount = 0;
+  const styleCache = new Map();
+  let lastWarmth = null;
+  let lastFaceKey = '';
+  let lastMouthPath = '';
 
-  function render(state = {}) {
-    renderCount += 1;
-    const presence = clamp(num(state.presence, 0.3), 0, 1);
-    const pulse = state.pulse || {};
-    const breath = state.breath || {};
-    const face = state.face || {};
-    const time = (performance.now() - start) / 1000;
+  function setVar(name, value) {
+    if (styleCache.get(name) === value) return;
+    styleCache.set(name, value);
+    container.style.setProperty(name, value);
+  }
 
-    const pulseActive = Boolean(pulse.active);
-    const pulseEnv = pulseActive ? clamp(num(pulse.envelope), 0, 1) : 0;
-    const breathActive = Boolean(breath.active);
-    const breathPhase = breathActive ? clamp(num(breath.phase), -1, 1) : 0;
+  function applyFace(face) {
     const awake = clamp(num(face.awake), 0, 1);
     const eyeOpen = clamp(num(face.eyeOpen, 1), 0.02, 1.35);
     const browRaise = clamp(num(face.browRaise), -1, 1);
@@ -254,27 +257,6 @@ export function mountPortrait(container) {
     const mouthOpen = clamp(num(face.mouthOpen), 0, 1.2);
     const blush = clamp(num(face.blush, 0.12), 0, 1);
 
-    // Light: the figure is always present, but it only warms as signals arrive.
-    const warm = 0.35 + presence * 0.45 + pulseEnv * 0.2;
-    els.figure.setAttribute('opacity', (0.5 + presence * 0.4).toFixed(3));
-    els.ambient.setAttribute('opacity', (0.22 + presence * 0.25 + pulseEnv * 0.08).toFixed(3));
-    els.halo.setAttribute('opacity', (presence * 0.22 + pulseEnv * 0.3).toFixed(3));
-    els.halo.setAttribute('transform', `translate(300 300) scale(${(1 + pulseEnv * 0.035).toFixed(4)}) translate(-300 -300)`);
-
-    // Breath moves the whole bust from the base of the chest. It is the live
-    // chest-movement trace, not a sine wave.
-    const lift = -breathPhase * 4.4 * (breathActive ? 1 : 0);
-    const breathScale = 1 + Math.max(0, breathPhase) * 0.009 * (breathActive ? 1 : 0);
-    els.figure.setAttribute(
-      'transform',
-      `translate(300 704) translate(0 ${lift.toFixed(2)}) scale(${breathScale.toFixed(4)}) translate(-300 -704)`,
-    );
-
-    const auraScale = 1 + breathPhase * 0.02 * (breathActive ? 1 : 0);
-    els.aura.setAttribute('opacity', (0.35 + presence * 0.25).toFixed(3));
-    els.aura.setAttribute('transform', `translate(300 486) scale(${auraScale.toFixed(4)}) translate(-300 -486)`);
-
-    // Face: eyes stay gently closed until face signals are opted in and seen.
     const lid = clamp((0.045 + 0.955 * awake) * eyeOpen, 0.02, 1.35);
     els.eyeLeft.setAttribute('transform', `translate(253 301) scale(1 ${lid.toFixed(3)}) translate(-253 -301)`);
     els.eyeRight.setAttribute('transform', `translate(347 301) scale(1 ${lid.toFixed(3)}) translate(-347 -301)`);
@@ -285,7 +267,11 @@ export function mountPortrait(container) {
     els.browLeft.setAttribute('transform', `translate(0 ${browY.toFixed(2)}) rotate(${(-browRot).toFixed(2)} 254 260)`);
     els.browRight.setAttribute('transform', `translate(0 ${browY.toFixed(2)}) rotate(${browRot.toFixed(2)} 346 260)`);
 
-    els.mouth.setAttribute('d', mouthPath(300, 392, 64, smile, mouthOpen));
+    const nextMouthPath = mouthPath(300, 392, 64, smile, mouthOpen);
+    if (nextMouthPath !== lastMouthPath) {
+      lastMouthPath = nextMouthPath;
+      els.mouth.setAttribute('d', nextMouthPath);
+    }
     const innerRy = Math.max(0, mouthOpen * 9);
     els.mouthInner.setAttribute('ry', innerRy.toFixed(2));
     els.mouthInner.setAttribute('cy', (394 - smile * 2).toFixed(2));
@@ -294,32 +280,55 @@ export function mountPortrait(container) {
     els.lipHighlight.setAttribute('opacity', (0.08 + awake * 0.18).toFixed(3));
     els.blushLeft.setAttribute('opacity', (0.05 + blush * 0.22).toFixed(3));
     els.blushRight.setAttribute('opacity', (0.05 + blush * 0.22).toFixed(3));
-    els.headRim.setAttribute('opacity', (0.08 + pulseEnv * 0.3).toFixed(3));
+  }
 
-    // Pulse: a warm sternum light and a rim highlight that follows the
-    // arterial-pressure waveform's peaks.
-    const glowOpacity = pulseActive ? 0.08 + pulseEnv * 0.55 : 0;
-    els.heartGlow.setAttribute('opacity', glowOpacity.toFixed(3));
-    els.heartGlow.setAttribute('transform', `translate(300 612) scale(${(1 + pulseEnv * 0.18).toFixed(3)}) translate(-300 -612)`);
-    els.heartCore.setAttribute('opacity', (pulseActive ? 0.28 + pulseEnv * 0.72 : 0.1).toFixed(3));
-    els.chestRim.setAttribute('opacity', (pulseActive ? 0.04 + pulseEnv * 0.16 : 0.03).toFixed(3));
-    els.chestRimRight.setAttribute('opacity', (pulseActive ? 0.03 + pulseEnv * 0.12 : 0.02).toFixed(3));
+  function render(state = {}) {
+    const presence = clamp(num(state.presence, 0.3), 0, 1);
+    const pulse = state.pulse || {};
+    const breath = state.breath || {};
+    const face = state.face || {};
 
-    // Ambient dust. It drifts on its own; it is not a signal. Updating the
-    // 52 mote attributes is comparatively expensive, and the drift is slow,
-    // so repaint them at 5 fps while the rest of the portrait runs at 30.
-    if (renderCount % 6 === 0) {
-      for (let i = 0; i < moteEls.length; i += 1) {
-        const mote = motes[i];
-        const el = moteEls[i];
-        const driftX = Math.cos(time * mote.speed + mote.phase) * 3.2;
-        const driftY = Math.sin(time * mote.speed * 1.4 + mote.phase) * 4.4 + lift * 0.55;
-        el.setAttribute('transform', `translate(${driftX.toFixed(2)} ${driftY.toFixed(2)})`);
-        el.setAttribute('opacity', (0.04 + presence * 0.3 * mote.opacity + pulseEnv * 0.03).toFixed(3));
-      }
+    const pulseActive = Boolean(pulse.active);
+    const pulseEnv = pulseActive ? clamp(num(pulse.envelope), 0, 1) : 0;
+    const breathActive = Boolean(breath.active);
+    const breathPhase = breathActive ? clamp(num(breath.phase), -1, 1) : 0;
+
+    const pulseRate = Number(pulse.bpm);
+    const breathRate = Number(breath.rate);
+    const pulseDuration = Number.isFinite(pulseRate) && pulseRate > 0
+      ? Math.min(2.4, Math.max(0.42, 60 / pulseRate))
+      : 1.1;
+    const breathDuration = Number.isFinite(breathRate) && breathRate > 0
+      ? Math.min(12, Math.max(2.5, 60 / breathRate))
+      : 6;
+
+    setVar('--kin-pulse-duration', `${pulseDuration.toFixed(2)}s`);
+    setVar('--kin-breath-duration', `${breathDuration.toFixed(2)}s`);
+    setVar('--kin-pulse-play', pulseActive ? 'running' : 'paused');
+    setVar('--kin-breath-play', breathActive ? 'running' : 'paused');
+    setVar('--kin-pulse-opacity', (0.32 + pulseEnv * 0.42).toFixed(3));
+    setVar('--kin-pulse-scale', (0.28 + pulseEnv * 0.45).toFixed(3));
+
+    const nextWarmth = (0.35 + presence * 0.45 + pulseEnv * 0.2).toFixed(2);
+    if (nextWarmth !== lastWarmth) {
+      lastWarmth = nextWarmth;
+      container.dataset.warmth = nextWarmth;
     }
 
-    container.dataset.warmth = warm.toFixed(2);
+    // Expression is the only part that needs a fast, discrete pose update.
+    // Throttle it and skip identical frames; pulse and breath run in CSS so
+    // the renderer stays free for the camera self-view.
+    if (face.active) {
+      const faceKey = [
+        num(face.awake), num(face.eyeOpen, 1), num(face.browRaise),
+        num(face.browAngle), num(face.smile), num(face.mouthOpen),
+        num(face.blush, 0.12),
+      ].map((value) => Number(value).toFixed(2)).join('|');
+      if (faceKey !== lastFaceKey) {
+        lastFaceKey = faceKey;
+        applyFace(face);
+      }
+    }
   }
 
   render({});

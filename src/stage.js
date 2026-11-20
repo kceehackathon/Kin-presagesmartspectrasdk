@@ -116,10 +116,10 @@ function loop(now) {
     applyMeta();
   }
 
-  // Expression changes are the one fast part of the portrait pose. Paint the
-  // companion at 30 fps so a deliberate expression does not land a beat late;
-  // the studio already broadcasts at the same cadence.
-  if (now - lastPaintAt >= 33) {
+  // The portrait is a slow biological display. Ten frames a second keeps the
+  // expression pose readable while leaving CPU for the camera self-view on
+  // two-core machines; the studio broadcasts derived state at 10 fps.
+  if (now - lastPaintAt >= 100) {
     portrait.render(latest.render || idleState);
     lastPaintAt = now;
   }

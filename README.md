@@ -2,9 +2,9 @@
 
 **A living portrait that listens to your pulse and breath.**
 
-Kin is a solo entry for the [Presage SmartSpectra SDK Challenge](https://dev.to/challenges/presage-2026-11-04). It uses the [SmartSpectra Node SDK](https://github.com/Presage-Security/SmartSpectra) in an Electron main process to turn live camera-derived signals into a quiet, responsive portrait. The studio shows the SDK’s live local self-view inside a restrained face-and-chest viewfinder; a companion portrait beside it rises with your breathing, a warm light at the sternum follows your pulse, and — only if you opt in — the face mirrors visible expression. Short spoken cues use the local system voice to help you get into frame, and stay quiet once the SDK reports a usable position.
+Kin is a solo entry for the [Presage SmartSpectra SDK Challenge](https://dev.to/challenges/presage-2026-11-04). It uses the [SmartSpectra Node SDK](https://github.com/Presage-Security/SmartSpectra) in an Electron main process to turn live camera-derived signals into a quiet, responsive portrait. The studio shows the SDK’s live local self-view inside a restrained face-and-chest viewfinder, with the portrait beside it. A warm light at the sternum follows your measured pulse, the signal traces show your breathing and pulse, and — only if you opt in — the face mirrors visible expression. A clear on-screen validation line tells you what to fix, and disappears once the SDK reports a usable position.
 
-Kin writes no video, audio, images, measurements, session history, or API key to disk. The native SDK may keep a technical device-key/model cache and diagnostic logs under Windows app data; they contain no camera frames, audio, or measured values. The measurement engine runs on your device. Telemetry is off. Spoken cues are generated locally and Kin never opens a microphone.
+Kin writes no video, audio, images, measurements, session history, or API key to disk. The native SDK may keep a technical device-key/model cache and diagnostic logs under Windows app data; they contain no camera frames, audio, or measured values. The measurement engine runs on your device. Telemetry is off. Kin never opens a microphone.
 
 > **General wellness and entertainment only.** Kin is not a medical device. It does not diagnose, treat, or predict anything, and it makes no claims about emotion or inner state. Numbers are estimates with confidence values.
 
@@ -22,17 +22,17 @@ The video is recorded from a live session with a real person in front of the cam
 
 1. **Consent first.** Kin asks for camera consent and a separate, off-by-default opt-in for the expression mirror. It explains exactly what stays on the device and what leaves it.
 2. **API key, held in memory.** In the public build, you paste a SmartSpectra key once. The private keyed judging build reads a local `kin.key` beside the executable. Either way, Kin uses the key for the SDK’s authentication handshake, clears the input, and does not write the key to disk or logs.
-3. **The portrait wakes.** The native SDK owns the camera and emits processed preview frames to the studio, so you can see yourself while it measures. The camera is requested at 1280×720 and 30 fps for measurement detail; the self-view is a 4:3 center crop at 25 fps. As measurements arrive, the portrait gains a pulse glow, then breathing motion, then visible expression.
-4. **Guided framing, gentle voice.** The self-view uses a viewfinder with face and upper-chest lines rather than a face circle. Spoken positioning cues are on by default, use the local system voice, and speak only after a validation problem persists. The speaker button in the studio mutes them for the rest of the session. Audio is never captured or uploaded.
+3. **The portrait wakes.** The native SDK owns the camera and emits processed preview frames to the studio, so you can see yourself while it measures. The camera is requested at 1280×720 and 30 fps for measurement detail; the self-view is a 4:3 center crop at up to 30 fps (about 24 fps on four logical cores or fewer), uploaded as a WebGL texture so the studio thread spends almost no time painting it. As measurements arrive, the portrait gains a pulse glow, the readouts fill in, and — if you opted in — the face mirrors visible expression.
+4. **Guided framing, clear text.** The self-view uses a viewfinder with face and upper-chest lines rather than a face circle. A text alert inside the self-view, plus the positioning card in the rail, says what to fix when the SDK reports a sustained problem. Audio is never captured or uploaded.
 5. **Live signals are shown honestly.** Pulse, breathing rate, confidence, and stability are displayed only when the SDK supplies them. Missing numeric signals stay blank. If the SDK supplies a live pulse rate without the arterial-pressure trace, the portrait paces its glow from that measured rate; it never invents a number, waveform, or confidence.
 6. **Pause or end any time.** Pause stops the camera and releases it. End clears the in-memory key and every derived value. The SDK may leave technical files under Windows app data; the paths and deletion steps are in **Storage** below.
-7. **Present or frame.** Present mode hides the studio for a clean portrait. The frameless portrait window opens automatically beside the studio when the display has room and receives only derived animation values, not camera frames. On a smaller display, the portrait shares the studio stage with the self-view. Press `F` to reopen or open it.
+7. **Present or frame.** Present mode hides the studio for a clean portrait. The studio keeps the portrait and self-view together by default. The frameless companion portrait is available on demand from the header or `F`; it receives only derived animation values, not camera frames.
 
 ### Signals requested
 
 | Signal | Metric code | Use |
 | --- | --- | --- |
-| Chest breathing trace | `0` (`CHEST_BREATHING`) | Moves the bust from the real chest-movement waveform |
+| Chest breathing trace | `0` (`CHEST_BREATHING`) | Keeps the breathing activity and phase honest; no synthetic motion |
 | Breathing rate | `2` (`BREATHING_RATE`) | Numeric breath estimate and confidence |
 | Pulse rate | `15` (`PULSE_RATE`) | Numeric pulse estimate and confidence |
 | Arterial pressure trace | `16` (`ARTERIAL_PRESSURE_TRACE`) | Drives the sternum glow from the real waveform; if unavailable, the measured rate paces the glow |
@@ -80,9 +80,9 @@ npm start
 
 ### Use
 
-1. Read the consent screen. Check **I agree** for camera + pulse + breathing and the general-wellness acknowledgement. The expression mirror is optional and off by default. Spoken positioning cues are on by default; leave them on, or switch them off before continuing.
+1. Read the consent screen. Check **I agree** for camera + pulse + breathing and the general-wellness acknowledgement. The expression mirror is optional and off by default.
 2. In the public build, paste your SmartSpectra API key. It stays in memory for the session. In the private keyed judging build, the key is supplied by a local `kin.key` beside the executable and this screen is skipped.
-3. After consent and key acceptance (or immediately in the keyed build), the camera opens. The studio shows a live local self-view on the left, with thin **FACE** and **CHEST** lines across a quiet viewfinder. On a wide display the portrait opens in a companion window beside it; on a smaller display the portrait sits beside the self-view inside the studio. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest in frame. Soft, even light in front of you works best; avoid strong backlight. If a positioning problem persists, Kin speaks a short cue; use the speaker button beside **On-device** to mute it.
+3. After consent and key acceptance (or immediately in the keyed build), the camera opens. The studio shows the portrait and a live local self-view together, with thin **FACE** and **CHEST** lines across a quiet viewfinder. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest in frame. Soft, even light in front of you works best; avoid strong backlight. If a positioning problem persists, the text alert inside the self-view and the positioning card say what to fix. Press `F` if you want the portrait in its own window.
 4. The portrait wakes as signals arrive. Warm-up depends on light, stillness, and the SDK; breathing often appears first, and pulse can take longer. The validation line tells you what to fix.
 5. Press `P` for present mode. Press `F` to reopen the portrait window if you close it.
 6. Press **Pause** to release the camera, or **End** to clear the session.
@@ -135,12 +135,12 @@ sdk.on('metrics', (buffer, timestampUs) => {
 
 sdk.on('videoOutput', (buffer, width, height, stride, pixelFormat) => {
   // Center-crop the 16:9 measurement frame to the self-view's 4:3 aspect,
-  // downsample it in the main process, then throttle the display copy to
-  // 25 fps. Measurement continues at 30 fps.
+  // downsample it in the main process, then send the selected display profile
+  // (480x360 or 320x240) at up to 30 fps. Measurement continues at 30 fps.
   const frame = makePreviewFrame(buffer, width, height, stride, pixelFormat);
   studio.webContents.send('kin:sdk-event', {
-    type: 'preview', buffer: frame, width: 640, height: 480,
-    stride: 640 * 3, pixelFormat: 0,
+    type: 'preview', buffer: frame, width: 480, height: 360,
+    stride: 480 * 4, pixelFormat: 2,
   });
 });
 
@@ -148,7 +148,7 @@ sdk.useCamera(CameraSelection.default, { width: 1280, height: 720, fps: 30 });
 await sdk.start();
 ```
 
-The `videoOutput` path is why the self-view remains visible during measurement without a second camera reader or a renderer-side frame pump. The main process owns the camera and the measurement loop; the preview is a display copy. SmartSpectra recommends 30 fps for headroom (and not below roughly 25 fps), so Kin asks the camera for 1280×720 at 30 fps, does the 4:3 crop and downsample in main, and sends the studio a compact 640×480 RGB frame at 25 fps. This keeps IPC small while measurement keeps the full capture rate.
+The `videoOutput` path is why the self-view remains visible during measurement without a second camera reader or a renderer-side frame pump. The main process owns the camera and the measurement loop; the preview is a display copy. SmartSpectra recommends 30 fps for headroom (and not below roughly 25 fps), so Kin asks the camera for 1280×720 at 30 fps, does the 4:3 crop and downsample in main, and sends the studio a compact 480×360 RGBA (320×240 on four logical cores or fewer) frame at up to 30 fps. The studio uploads that frame as a WebGL texture and coalesces packets to the newest one, so paint work stays off the CPU and a slow frame is dropped instead of queued. Measurement keeps the full camera rate.
 
 **Renderer** (`src/renderer.js` and `src/preload-studio.js`):
 
@@ -175,7 +175,7 @@ The preload exposes only two functions: send a typed lifecycle command and subsc
 `metrics` events are windowed slices, not a cumulative stream. `SignalEngine` normalizes the arterial-pressure and chest traces, detects pulse peaks with a refractory window, and maps expression scores to smoothed facial parameters. The portrait renders only what the engine has actually seen:
 
 - **Pulse glow** — the arterial-pressure trace’s normalized peaks set a short envelope. Without the trace, a fresh live pulse rate paces the same envelope; the displayed rate remains the Presage measurement.
-- **Breathing** — the chest trace’s deviation from its recent mean moves the bust from its base. No trace, no movement.
+- **Breathing** — the chest trace keeps the breathing activity and phase honest. The studio shows the measured rate and trace; the portrait does not invent a breathing motion when the trace is stale.
 - **Expression** — the winning expression score above a small confidence floor morphs brows, eyes, and mouth. Confidence below the floor returns to neutral. Blinks and talking are short-lived overlays.
 - **Dust and ambient light** — explicitly decorative, never presented as a measurement.
 
@@ -241,11 +241,11 @@ Close Kin or choose **End session**. The camera is released, the in-memory key i
 
 ### Camera and preview
 
-The native SDK owns the camera while the session is active. Kin requests 1280×720 at 30 fps, which matches SmartSpectra’s target and keeps enough face detail for the optional expression metrics. The studio’s local self-view is a 4:3 center crop, downsampled in the main process and painted at 25 fps so the preview feels responsive without a full 720p IPC copy every frame. **Pause** stops the camera and releases it. The preview is never recorded or uploaded. The companion portrait window receives only derived animation values (`pulse envelope`, `breath phase`, `face parameters`) over `BroadcastChannel`; it never receives camera frames or metric buffers.
+The native SDK owns the camera while the session is active. Kin requests 1280×720 at 30 fps, which matches SmartSpectra’s target and keeps enough face detail for the optional expression metrics. The self-view display profile is chosen automatically: four logical cores or fewer get 320×240 at about 24 fps, larger machines get 480×360 at up to 30 fps. Set `KIN_PREVIEW_PROFILE=high` or `low` to override that choice for a particular demo machine. The studio’s local self-view is a 4:3 center crop, downsampled in the main process to 480×360, or 320×240 on four logical cores or fewer, and uploaded as a WebGL texture on the newest-frame schedule, so the preview stays responsive and leaves CPU for the measurement thread. **Pause** stops the camera and releases it. The preview is never recorded or uploaded. The optional companion portrait window receives only derived animation values (`pulse envelope`, `face parameters`) over `BroadcastChannel`; it never receives camera frames or metric buffers.
 
 These settings follow Presage’s [measurement-quality guidance](https://smartspectra.presagetech.com/docs/measurement-quality): target 30 fps with headroom above 25 fps, keep one centered face and the upper chest visible, use even front light, and keep the camera stationary for breathing and chest waveforms. Low light can cause auto-exposure to lengthen exposure time and reduce frame rate; Kin surfaces that as **Camera running slowly** rather than hiding it.
 
-The face-and-chest guide is a framing aid, not a detection overlay: two hairlines mark the eye and upper-chest band, with corner brackets and no face or chest circles. Spoken cues are optional local text-to-speech and are rate-limited; they fire only for sustained validation codes such as **No face yet**, **Chest not in frame**, **Too dark**, or **Camera settling**. Kin never opens a microphone and never records or uploads audio.
+The face-and-chest guide is a framing aid, not a detection overlay: two hairlines mark the eye and upper-chest band, with corner brackets and no face or chest circles. A text alert inside the self-view and the positioning card name the current problem, such as **No face yet**, **Chest not in frame**, **Too dark**, or **Camera settling**. Kin never opens a microphone and never records or uploads audio.
 
 For best results, mount the camera on a stand or laptop lid, use even front light, and avoid backlight or a flickering primary light. Breathing measurement needs a stationary camera. Low light can make auto-exposure drop the frame rate, which is why Kin surfaces the SDK’s **Camera running slowly** warning instead of hiding it.
 
@@ -258,9 +258,9 @@ Kin does not diagnose, treat, monitor, or predict any medical condition. It does
 ## Limitations
 
 - Measurement quality depends on lighting, camera placement, motion, and skin visibility. The studio shows the SDK’s validation hints (too dark, chest not visible, excessive motion, and so on) instead of hiding them. Front light and a still, front-facing posture matter most for pulse. Low light can make the camera’s auto-exposure reduce frame rate; close other camera apps and add soft front light if Kin reports **Camera running slowly**.
-- Kin asks for 1280×720 at 30 fps, but the self-view is intentionally a 25 fps display copy and the portrait paints at 30 fps. Expression classification itself is windowed and may update less often than the video; the mirror follows as soon as a new window arrives, with a 0.15 s smoothing time rather than the earlier slower ease.
+- Kin asks for 1280×720 at 30 fps and delivers a 480×360 RGBA (320×240 on four logical cores or fewer) display copy at up to 30 fps. The renderer coalesces packets to the newest frame and uploads it with WebGL instead of using CPU `putImageData`. On the two-core test laptop this held about 29 preview events/s with ~55 ms p50 event delivery when no face was present. A face adds measurement work, but the preview cannot build a multi-second queue: stale packets are dropped. The portrait’s pulse glow is a small compositor-driven element; the detailed SVG face is repainted only when the optional expression mirror is on. Expression classification itself is windowed and may update less often than the video.
 - Pulse and breathing have SDK warm-up periods; breathing often appears first, and pulse can take longer. The portrait stays still until real samples arrive. If only the pulse rate is available, the rate paces the glow; no waveform is invented.
-- Spoken guidance depends on the operating system providing a local system voice. On Windows this is the built-in SAPI voice set. Kin selects only a local voice and skips the cue if none is exposed; the visual validation hints still work.
+- Positioning guidance is visual only. The self-view alert and the rail card stay visible for as long as the SDK reports a problem, and clear when the pose is usable.
 - The arterial-pressure trace is uncalibrated and unitless; Kin uses it only as a waveform for animation, never as a blood-pressure reading.
 - Presage’s usage-verification check can drop a session if its network request cannot complete. Kin stops, keeps the last values as stopped estimates, and offers **Try Again**; it never continues by inventing values. Keep demo sessions short and check connectivity.
 - Windows x64 is the tested target. The SDK also supports macOS and Linux, but Kin’s packaging and camera permission policy are Windows-first for this submission.
@@ -277,9 +277,9 @@ The privacy claims are enforceable in the source, not just in copy:
 - `src/preload-studio.js` exposes only typed start/stop and SDK-event functions; there is no generic IPC or filesystem surface.
 - `main.js` sets `enableTelemetry: false` and requests no facial landmarks.
 - There is no `localStorage`, `sessionStorage`, `indexedDB`, or filesystem write in the renderer.
-- Spoken guidance uses `window.speechSynthesis` with a local voice where the OS provides one. There is no `getUserMedia` audio request, no microphone permission, and no audio buffer or upload path.
+- There is no `getUserMedia` audio request, no microphone permission, and no audio buffer, playback, or upload path. Kin does not synthesize speech.
 - There is no app-level screenshot or recording path; the dev-only capture shortcut was removed. The SDK log level is set to `kNone`, but the SDK may still create technical diagnostics; see **Storage**.
-- The companion portrait window receives derived values only, over `BroadcastChannel`; the studio’s preview canvas is the only place preview frames are painted.
+- The optional companion portrait window receives derived values only, over `BroadcastChannel`; the studio’s preview canvas is the only place preview frames are painted.
 
 ---
 
