@@ -13,7 +13,7 @@ The narration lines below are optional. Keep the screen actions in order; the ap
 - Close other apps and notifications. Do not show email, browser tabs, or a key.
 - Set the display to 1920×1080 if possible. Kin is designed for a 1280-wide studio plus a portrait panel.
 - Start from a fresh launch with the consent screen showing. Do not start from a session that has already been running.
-- Check the microphone with a 10-second test recording.
+- Keep microphone and desktop-audio capture off in vokoscreenNG. The demo is screen-only; Kin has no synthesized speech or app audio.
 - Do not enable the same webcam in vokoscreenNG while Kin is measuring. Kin owns the camera through the native SDK. The face on screen is Kin's live self-view. If you want a separate talking-head shot, use a second camera or a phone, or record that shot separately with Kin closed.
 - Leave the **Expression mirror** off. The positioning alert is on-screen text inside the self-view; a correctly framed session shows only the quiet **Good position** state.
 - If the SDK shows a validation warning, fix the position and wait. Do not edit in a fake signal. A cut is fine; a substituted signal is not.
