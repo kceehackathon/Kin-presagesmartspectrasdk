@@ -44,7 +44,7 @@ npm start
 - The live self-view and the live pulse/breathing values are visible at the same time.
 - The self-view is a 4:3 framing guide with face and chest lines; it is not a face-detection circle.
 - Positioning guidance is on-screen text only and never uses the microphone.
-- The camera is requested at 1280×720 and 30 fps; the preview is a 480×360 RGBA (320×240 on four logical cores or fewer) display crop at up to 30 fps, uploaded as a WebGL texture.
+- The camera is requested at 1280×720 and 30 fps; the preview is a 480×360 RGBA display crop at up to 30 fps, or 320×240 at about 24 fps on four logical cores or fewer, uploaded as a WebGL texture.
 - The layout adapts to the available work area. On 1024×768, 1280×720, 1366×768, and 1920×1080, both the self-view and the portrait remain visible. When the display has room, the portrait opens beside the studio. On a smaller display it shares the stage with the self-view, so it does not cover the rail or the End button.
 - At a 1280×720 display with 150% scaling (about 853×480 DIP), the rail remains usable and the Pause/End actions stay visible.
 - The portrait moves from measured signals, not a looping animation.
