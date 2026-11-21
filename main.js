@@ -104,8 +104,8 @@ const CAMERA_CAPTURE = Object.freeze({ width: 1280, height: 720, fps: 30 });
 
 // The measurement camera stays at its full 1280x720/30 profile. Only the
 // self-view display copy scales with the machine: four logical cores or fewer
-// get a smaller, slightly slower copy so the measurement thread keeps its
-// budget; larger machines get the full 480x360 copy. KIN_PREVIEW_PROFILE=high
+// get a smaller copy so the measurement thread keeps its budget; larger
+// machines get the full 480x360 copy. KIN_PREVIEW_PROFILE=high
 // or low overrides the automatic choice for a specific demo machine.
 const PREVIEW_PROFILE = process.env.KIN_PREVIEW_PROFILE === 'high'
   ? 'high'
