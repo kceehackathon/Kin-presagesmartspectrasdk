@@ -37,13 +37,13 @@ Do not open the primary webcam in vokoscreenNG "just in case." Test the exact se
    - Check **Minimized when recording starts**. This keeps the vokoscreenNG window out of the capture.
    - Set **Second wait before recording** to `2` or `3`.
    - Leave **Show in systray** on if you want to stop from the tray.
-8. Open the **Codecs** tab and confirm that the selected format, video codec, and audio codec show **Available**. If H.264 is missing, use the download or license prompt or choose a supported codec.
+8. Open the **Codecs** tab and confirm that the selected format and video codec show **Available**. Audio is disabled for this demo; do not add an audio track. If H.264 is missing, use the download or license prompt or choose a supported codec.
 9. Do not enable the **Camera** tab. Kin's self-view is the face.
 10. Optional: open the **Timer** tab and enable **Stop recording after** `4` minutes as a safety net. The demo should be about 2:10.
 11. Click **Start**. Wait for the countdown. If vokoscreenNG did not minimize itself, minimize it now.
 12. Record a 10-second test, stop it, and open the **Folder** to check:
     - The screen is sharp.
-    - The microphone level is not clipping.
+    - The recording has no microphone or desktop-audio track.
     - Kin's self-view and the portrait are both visible.
     - No notification, key file, or private window is on screen. The keyed demo build skips the key screen; keep its folder and `kin.key` out of the capture.
 
@@ -59,7 +59,7 @@ The default Start/Stop shortcut is `CTRL+SHIFT+F10`. It does not clash with Kin'
 ## Recording the demo
 
 1. Launch Kin and leave it on the consent screen.
-2. In vokoscreenNG, confirm **Fullscreen**, the correct display, `30` frames, `MP4`/`H.264`, microphone only, camera off, and **Minimized when recording starts**.
+2. In vokoscreenNG, confirm **Fullscreen**, the correct display, `30` frames, `MP4`/`H.264`, audio off, camera off, and **Minimized when recording starts**.
 3. Click **Start**. Wait for the countdown and confirm vokoscreenNG has minimized. Begin `demo-script.md`.
 4. Stop the recording after the closing line with `CTRL+SHIFT+F10`.
 5. Open the **Folder** and check the editing list at the end of `demo-script.md`.
