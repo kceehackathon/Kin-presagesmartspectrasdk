@@ -1,7 +1,6 @@
 'use strict';
 
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { app, BrowserWindow, Menu, session, shell, screen, ipcMain } = require('electron');
@@ -12,6 +11,16 @@ const { app, BrowserWindow, Menu, session, shell, screen, ipcMain } = require('e
 // layout still reflows for smaller work areas; this only removes the
 // surprise of a fixed-size window rendered off-screen.
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
+
+// Windows can mark a fully covered Electron window as occluded and drop its
+// renderer to about 1 fps even when backgroundThrottling is disabled. The
+// self-view and the studio are driven by requestAnimationFrame, so occlusion
+// shows up as a frozen camera and a stalled UI. Keep the render loop alive for
+// the studio and focus it when it opens.
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 // In a packaged build the native closure lives in resources/smartspectra/,
 // outside app.asar. Point the SDK resolver there before loading the binding.
@@ -94,32 +103,19 @@ let nativeChain = Promise.resolve();
 let lastVideoAt = 0;
 let previewCredit = 0;
 
-// SmartSpectra's own guidance is to target 30 fps and to keep enough facial
-// detail for expression/blink classification. The SDK's Electron reference
-// camera is 1280x720/30; the earlier 640x480 override was the only place Kin
-// asked for less. Explicit capture requests do not fall back, so keep this
-// common webcam format. The preview is center-cropped to the 4:3 self-view and
-// downsampled in this process, rather than sending a full 720p copy over IPC.
-const CAMERA_CAPTURE = Object.freeze({ width: 1280, height: 720, fps: 30 });
-
-// The measurement camera stays at its full 1280x720/30 profile. Only the
-// self-view display copy scales with the machine: four logical cores or fewer
-// get a smaller copy so the measurement thread keeps its budget; larger
-// machines get the full 480x360 copy. KIN_PREVIEW_PROFILE=high
-// or low overrides the automatic choice for a specific demo machine.
-const PREVIEW_PROFILE = process.env.KIN_PREVIEW_PROFILE === 'high'
-  ? 'high'
-  : (process.env.KIN_PREVIEW_PROFILE === 'low' ? 'low' : (os.cpus().length <= 4 ? 'low' : 'high'));
-const PREVIEW_WIDTH = PREVIEW_PROFILE === 'high' ? 480 : 320;
-const PREVIEW_HEIGHT = PREVIEW_PROFILE === 'high' ? 360 : 240;
-const PREVIEW_INTERVAL_MS = PREVIEW_PROFILE === 'high' ? 25 : 40; // 30 fps high, ~24 fps low
+// The first Kin build captured the self-view at a native 640x480/30. Keep that
+// camera profile and its roughly 15 fps preview cadence: the self-view is a
+// direct, light-weight rendering of the SDK's own processed frames, with no
+// second camera reader and no renderer-side frame pump competing for CPU.
+const CAMERA_CAPTURE = Object.freeze({ width: 640, height: 480, fps: 30 });
+const PREVIEW_WIDTH = 640;
+const PREVIEW_HEIGHT = 480;
+const PREVIEW_INTERVAL_MS = 66;
 let previewFrame = Buffer.allocUnsafe(PREVIEW_WIDTH * PREVIEW_HEIGHT * 4);
 
-// The SDK captures at 1280x720 so face/chest detail stays high. Sending a
-// full 720p frame across IPC 25 times a second saturates the browser process
-// and can make the whole app feel late, so center-crop to the self-view's 4:3
-// aspect and downsample once here. The renderer receives a compact RGBA frame
-// that it can hand straight to ImageData without another per-pixel pass.
+// The SDK's video output is RGB/RGBA, not necessarily the RGBA layout the
+// canvas wants. Center-crop to the 4:3 self-view and convert once here so the
+// renderer can hand the buffer straight to its WebGL texture upload.
 function makePreviewFrame(buffer, width, height, stride, pixelFormat) {
   const channels = pixelFormat === 2 || pixelFormat === 3
     ? 4
@@ -232,10 +228,10 @@ async function startNativeSession({ session, apiKey, requestedMetrics }) {
   });
 
   // The native pipeline already renders a processed frame for its own graph.
-  // Reuse it as the self-view: 1280x720 RGB at 30 fps from the camera owner,
-  // center-cropped and downsampled to the self-view profile here, then capped
-  // for the IPC hop. No second camera reader and no renderer-side frame pump,
-  // so measurement keeps its full frame budget.
+  // Reuse it as the self-view: the same 640x480/30 camera frame the first
+  // build used, center-cropped to 4:3 and converted once, then capped near
+  // 15 fps for the IPC hop. No second camera reader and no renderer-side
+  // frame pump, so measurement keeps its full frame budget.
   sdk.on('videoOutput', (buffer, width, height, stride, pixelFormat, timestampUs) => {
     if (nativeSessionToken !== session) return;
     const now = Date.now();
@@ -489,6 +485,7 @@ function createStudioWindow() {
 
   win.once('ready-to-show', () => {
     win.show();
+    win.focus();
     if (process.argv.includes('--dev')) {
       win.webContents.openDevTools({ mode: 'detach' });
     }

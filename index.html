@@ -54,21 +54,7 @@
         </div>
 
         <div class="stage-mirror" aria-label="Live local camera preview">
-          <canvas id="stage-preview" width="480" height="360" aria-label="Live local camera preview"></canvas>
-          <div class="stage-mirror-guide" aria-hidden="true">
-            <svg viewBox="0 0 480 360" fill="none">
-              <rect x="26" y="26" width="428" height="308" rx="18" stroke="#e8c39e" stroke-width=".8" opacity=".13"/>
-              <path d="M26 68V44a18 18 0 0 1 18-18h42M394 26h42a18 18 0 0 1 18 18v24M454 292v24a18 18 0 0 1-18 18h-42M86 334H44a18 18 0 0 1-18-18v-24" stroke="#e8c39e" stroke-width="1.1" opacity=".48"/>
-              <path d="M64 122h352" stroke="#e8c39e" stroke-width=".9" opacity=".34"/>
-              <path d="M64 122h18M398 122h18" stroke="#e8c39e" stroke-width="1" opacity=".56"/>
-              <path d="M92 282h296" stroke="#e8c39e" stroke-width=".9" opacity=".27"/>
-              <path d="M240 40v14M240 306v14" stroke="#e8c39e" stroke-width=".9" opacity=".32"/>
-              <text x="34" y="119" fill="#e8c39e" opacity=".64" font-family="Inter, Segoe UI, sans-serif" font-size="7" letter-spacing="1.7">FACE</text>
-              <text x="34" y="279" fill="#e8c39e" opacity=".52" font-family="Inter, Segoe UI, sans-serif" font-size="7" letter-spacing="1.7">CHEST</text>
-            </svg>
-          </div>
-          <div class="stage-mirror-tag">Live local preview · not recorded</div>
-          <div class="preview-alert" id="preview-alert" role="status" aria-live="polite" hidden></div>
+          <canvas id="stage-preview" width="640" height="480" aria-label="Live local camera preview"></canvas>
         </div>
       </div>
 
@@ -169,27 +155,7 @@
         </article>
       </section>
 
-      <section class="preview-row" aria-label="Camera privacy and signal guidance">
-        <div class="preview-card camera-card">
-          <div class="preview-head">
-            <span>Camera</span>
-            <span class="camera-local">Local only</span>
-          </div>
-          <div class="preview-frame camera-guide">
-            <svg viewBox="0 0 200 150" fill="none" aria-hidden="true">
-              <rect x="9" y="9" width="182" height="132" rx="10" stroke="#d9a06e" stroke-width=".8" opacity=".12"/>
-              <path d="M9 31V19a10 10 0 0 1 10-10h18M163 9h18a10 10 0 0 1 10 10v12M191 119v12a10 10 0 0 1-10 10h-18M37 141H19a10 10 0 0 1-10-10v-12" stroke="#d9a06e" stroke-width="1" opacity=".52"/>
-              <path d="M29 56h142" stroke="#d9a06e" stroke-width=".8" opacity=".34"/>
-              <path d="M29 56h9M162 56h9" stroke="#d9a06e" stroke-width=".9" opacity=".58"/>
-              <path d="M48 112h104" stroke="#d9a06e" stroke-width=".8" opacity=".26"/>
-              <path d="M100 15v8M100 127v8" stroke="#d9a06e" stroke-width=".8" opacity=".32"/>
-              <text x="13" y="53" fill="#d9a06e" opacity=".68" font-family="Inter, Segoe UI, sans-serif" font-size="5.5" letter-spacing="1.2">FACE</text>
-              <text x="13" y="109" fill="#d9a06e" opacity=".54" font-family="Inter, Segoe UI, sans-serif" font-size="5.5" letter-spacing="1.2">CHEST</text>
-            </svg>
-            <div class="preview-tag">Live preview</div>
-          </div>
-        </div>
-
+      <section class="preview-row" aria-label="Signal guidance">
         <div class="validation" id="validation" data-tone="neutral">
           <div class="validation-head">
             <span class="validation-icon" aria-hidden="true">
@@ -295,7 +261,7 @@
               <div class="choice-title">Live local preview</div>
               <div class="choice-desc">You can see yourself while Kin listens. The preview stays on this device, is never recorded or uploaded, and stops when you pause or end.</div>
             </div>
-            <span class="camera-local">Private</span>
+            <span class="choice-badge">Private</span>
           </div>
 
 
@@ -343,7 +309,7 @@
         <button class="btn-clay" id="key-continue" type="button">Begin listening</button>
       </div>
 
-      <p class="key-note">The camera opens next. The portrait and your self-view appear together in the studio. Position your head, shoulders, and upper chest in the guide. The first signals can take up to a minute; keep still and stay in frame. Press F if you want the portrait in its own window.</p>
+      <p class="key-note">The camera opens next. The portrait and your self-view appear together in the studio. Position your head, shoulders, and upper chest in the self-view. The first signals can take up to a minute; keep still and stay in frame. Press F if you want the portrait in its own window.</p>
       <p class="key-note">Kin uses this key only for Presage authentication and usage verification. It is never written to disk, logged, or included in the repository. Closing the app forgets it.</p>
       <p class="key-note">No key yet? <a href="https://physiology.presagetech.com/auth/register" target="_blank" rel="noreferrer">Create one at the Presage portal</a>.</p>
     </div>

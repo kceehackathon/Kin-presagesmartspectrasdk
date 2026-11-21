@@ -96,7 +96,6 @@ const els = {
   validation: $('validation'),
   validationLabel: $('validation-label'),
   validationText: $('validation-text'),
-  previewAlert: $('preview-alert'),
 
   pauseBtn: $('pause-btn'),
   pauseIcon: $('pause-icon'),
@@ -263,12 +262,6 @@ function setValidation(label, text, tone = 'neutral') {
   els.validationLabel.textContent = label;
   els.validationText.textContent = text;
   els.validation.dataset.tone = tone;
-  if (els.previewAlert) {
-    const show = tone !== 'ok' && Boolean(text);
-    els.previewAlert.textContent = show ? `${label} — ${text}` : '';
-    els.previewAlert.hidden = !show;
-    els.previewAlert.dataset.tone = tone;
-  }
 }
 
 const VALIDATION_COPY = {
@@ -606,8 +599,8 @@ function requestedMetrics(entitlements) {
   return codes;
 }
 
-const PREVIEW_WIDTH = 480;
-const PREVIEW_HEIGHT = 360;
+const PREVIEW_WIDTH = 640;
+const PREVIEW_HEIGHT = 480;
 let previewGl = null;
 let previewGlTexture = null;
 let previewGlWidth = 0;
@@ -617,11 +610,11 @@ let previewImageData = null;
 let pendingPreview = null;
 let previewRaf = 0;
 
-// 2D putImageData is a CPU raster upload. On this two-core laptop it competes
+// 2D putImageData is a CPU raster upload. On the test laptop it competes
 // directly with the SmartSpectra measurement thread, which is what produced the
-// late, choppy self-view. Use WebGL for the normal RGBA frame: the texture
-// upload is done by the GPU process and the studio thread only issues a draw.
-// A 2D path remains as a fallback for machines without WebGL.
+// late, choppy self-view in earlier preview paths. Use WebGL for the normal
+// RGBA frame: the texture upload is done by the GPU process and the studio
+// thread only issues a draw. A 2D path remains as a fallback without WebGL.
 function setupPreviewGl() {
   const canvas = els.stagePreview;
   if (!canvas) return false;
@@ -1109,8 +1102,6 @@ async function endSession() {
   els.consentFace.checked = false;
   els.consentMedical.checked = false;
   els.consentContinue.disabled = true;
-  if (els.previewAlert) els.previewAlert.hidden = true;
-
   els.consent.classList.remove('hidden');
   els.keygate.classList.add('hidden');
   els.privacy.classList.add('hidden');
@@ -1433,6 +1424,5 @@ engine.setEntitlements({ pulse: true, breath: true, face: false });
 setStatus('idle');
 setPauseUi('off');
 setValidation('Position', 'Waiting for the first frame.', 'neutral');
-if (els.previewAlert) els.previewAlert.hidden = true;
 paintUi();
 requestAnimationFrame(loop);
