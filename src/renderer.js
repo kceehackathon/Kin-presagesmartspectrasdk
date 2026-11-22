@@ -146,6 +146,7 @@ let sessionActiveStart = null;
 
 let frameWindow = null;
 let stageChannel = null;
+let isFullscreen = false;
 let lastUiPaint = 0;
 let lastPortraitPaint = 0;
 let lastBroadcast = 0;
@@ -544,6 +545,11 @@ function broadcastState(now = performance.now()) {
 }
 
 function openFrame() {
+  if (isFullscreen) {
+    showToast('The frame window is available in windowed mode. Press F11 to leave fullscreen.', 'warn');
+    return;
+  }
+
   if (frameWindow && !frameWindow.closed) {
     els.app.dataset.companion = 'on';
     frameWindow.focus();
@@ -588,6 +594,31 @@ function closeFrame() {
 function companionFits() {
   return Boolean(window.screen && Number(window.screen.availWidth) >= 1250);
 }
+
+function applyWindowMode(payload) {
+  const next = Boolean(payload && payload.fullscreen);
+  if (next === isFullscreen) return;
+  isFullscreen = next;
+  document.body.classList.toggle('kin-fullscreen', isFullscreen);
+  if (isFullscreen) closeFrame();
+}
+
+// Electron's fullscreen events cover the normal path. The viewport check is a
+// fallback for display managers that do not deliver the leave event reliably.
+function syncFullscreenFromViewport() {
+  const full = Boolean(
+    window.screen
+    && window.innerWidth >= window.screen.width
+    && window.innerHeight >= window.screen.height,
+  );
+  applyWindowMode({ fullscreen: full });
+}
+
+if (window.kin && typeof window.kin.onWindowMode === 'function') {
+  window.kin.onWindowMode(applyWindowMode);
+}
+window.addEventListener('resize', () => requestAnimationFrame(syncFullscreenFromViewport));
+requestAnimationFrame(syncFullscreenFromViewport);
 
 // ------------------------------------------------------------- SDK lifecycle
 

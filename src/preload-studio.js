@@ -6,9 +6,20 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const listeners = new Set();
+const windowModeListeners = new Set();
 
 ipcRenderer.on('kin:sdk-event', (_event, payload) => {
   for (const listener of listeners) {
+    try {
+      listener(payload);
+    } catch {
+      /* one page listener must not break the others */
+    }
+  }
+});
+
+ipcRenderer.on('kin:window-mode', (_event, payload) => {
+  for (const listener of windowModeListeners) {
     try {
       listener(payload);
     } catch {
@@ -26,5 +37,10 @@ contextBridge.exposeInMainWorld('kin', {
     if (typeof callback !== 'function') return () => {};
     listeners.add(callback);
     return () => listeners.delete(callback);
+  },
+  onWindowMode(callback) {
+    if (typeof callback !== 'function') return () => {};
+    windowModeListeners.add(callback);
+    return () => windowModeListeners.delete(callback);
   },
 });

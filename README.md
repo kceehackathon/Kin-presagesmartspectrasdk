@@ -26,7 +26,7 @@ The video is recorded from a live session with a real person in front of the cam
 4. **Clean self-view, clear text.** The camera view is clean: no face circle, chest circle, guide lines, or labels over the video. The positioning card in the rail says what to fix when the SDK reports a sustained problem. Audio is never captured or uploaded.
 5. **Live signals are shown honestly.** Pulse, breathing rate, confidence, and stability are displayed only when the SDK supplies them. Missing numeric signals stay blank. If the SDK supplies a live pulse rate without the arterial-pressure trace, the portrait paces its glow from that measured rate; it never invents a number, waveform, or confidence.
 6. **Pause or end any time.** Pause stops the camera and releases it. End clears the in-memory key and every derived value. The SDK may leave technical files under Windows app data; the paths and deletion steps are in **Storage** below.
-7. **Present or frame.** Present mode hides the studio for a clean portrait. The studio keeps the portrait and self-view together by default. The frameless companion portrait is available on demand from the header or `F`; it receives only derived animation values, not camera frames.
+7. **Fullscreen, present, or frame.** Kin opens as a borderless fullscreen app for an uncluttered view; press `F11` to switch between fullscreen and windowed mode. Present mode hides the studio rail for a clean portrait. The studio keeps the portrait and self-view together. In windowed mode, the frameless companion portrait is available on demand from the header or `F`; it receives only derived animation values, not camera frames.
 
 ### Signals requested
 
@@ -65,7 +65,7 @@ Kin has **no Kin account, login, or cloud service**. The public build requires a
 
 The public repository and public installers intentionally contain no key; a client-side key would be extractable. For a no-key judging run, use the private keyed portable build: it carries a local `kin.key` beside the executable and skips the key screen. The operator can also use the `KIN_API_KEY` environment variable or a local `kin.key` file as described below. Contact the author through the DEV submission for the private package. Do not publish a key in the repository or a public release.
 
-The free Presage trial has a usage allowance. If the studio says **This API key has no credits left**, create a fresh trial key and replace `kin.key`; Kin cannot bypass Presage metering. The currently installed key must be removed or replaced, and the app fully closed and reopened.
+The free Presage trial has a usage allowance. If the studio says **This API key has no credits left**, the trial account is out of credits; replacing the key with another key from that same account will not restore them. Kin cannot bypass Presage metering. Request a trial reset through the Presage Discord link in the challenge resources, or use a valid key from a trial account that still has credits. Remove or replace the exhausted key, fully close the app, and open it again.
 
 ### Run from source
 
@@ -80,11 +80,11 @@ npm start
 
 ### Use
 
-1. Read the consent screen. Check **I agree** for camera + pulse + breathing and the general-wellness acknowledgement. The expression mirror is optional and off by default.
+1. Read the consent screen. Check **I agree** for camera + pulse + breathing and the general-wellness acknowledgement. The expression mirror is optional and off by default. Kin opens fullscreen; press `F11` to switch to windowed mode.
 2. In the public build, paste your SmartSpectra API key. It stays in memory for the session. In the private keyed judging build, the key is supplied by a local `kin.key` beside the executable and this screen is skipped.
-3. After consent and key acceptance (or immediately in the keyed build), the camera opens. The studio shows the portrait and a live local self-view together. The self-view has no lines, circles, or labels over the video. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest in frame. Soft, even light in front of you works best; avoid strong backlight. If a positioning problem persists, the positioning card in the rail says what to fix. Press `F` if you want the portrait in its own window.
+3. After consent and key acceptance (or immediately in the keyed build), the camera opens. The fullscreen studio shows the portrait and a live local self-view together. The self-view has no lines, circles, or labels over the video. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest in frame. Soft, even light in front of you works best; avoid strong backlight. If a positioning problem persists, the positioning card in the rail says what to fix.
 4. The portrait wakes as signals arrive. Warm-up depends on light, stillness, and the SDK; breathing often appears first, and pulse can take longer. The validation line tells you what to fix.
-5. Press `P` for present mode. Press `F` to reopen the portrait window if you close it.
+5. Press `P` for present mode. Press `F11` to leave or re-enter fullscreen. In windowed mode only, press `F` to open the separate companion portrait window; in fullscreen, the portrait is already part of the studio.
 6. Press **Pause** to release the camera, or **End** to clear the session.
 
 ### Operator key (demo and judges builds)
@@ -181,7 +181,7 @@ The preload exposes only two functions: send a typed lifecycle command and subsc
 
 If the key is not authorized for a signal, Kin removes that bundle and tells you which one, rather than pretending the signal is live. Pulse and breathing are the core; the expression mirror is dropped first.
 
-The companion portrait window (`stage.html`) is a separate renderer. It receives only derived animation values over `BroadcastChannel`; it never receives camera frames, metrics buffers, or the API key. When a companion is open, the studio's own portrait is hidden. When the display has no room for a companion, the studio shows the portrait and the self-view together and the companion is not opened automatically.
+The companion portrait window (`stage.html`) is a separate renderer. It receives only derived animation values over `BroadcastChannel`; it never receives camera frames, metrics buffers, or the API key. In fullscreen, the studio always keeps the portrait and self-view together and the companion is suppressed. In windowed mode, the companion can be opened on demand; when it is open, the studio's own portrait is hidden. When the display has no room for a companion, the studio shows the portrait and the self-view together and the companion is not opened automatically.
 
 ### Project layout
 

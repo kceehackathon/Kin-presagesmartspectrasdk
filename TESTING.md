@@ -28,9 +28,9 @@ npm start
 
 ## Three-minute test
 
-1. **Consent gate.** Launch Kin. The consent screen should appear before any camera access. Try clicking **I consent — continue** without checking both required boxes; it should stay disabled. Check **I agree** under **Camera + pulse + breathing** and the general-wellness acknowledgement. Leave **Expression mirror** off.
+1. **Consent gate.** Launch Kin. It should open fullscreen with no titlebar or taskbar showing. The consent screen should appear before any camera access. Try clicking **I consent — continue** without checking both required boxes; it should stay disabled. Check **I agree** under **Camera + pulse + breathing** and the general-wellness acknowledgement. Leave **Expression mirror** off.
 2. **Key handling.** Click **I consent — continue**. In the public build, paste a free SmartSpectra key into the masked field. Do not click **Show**. In the private keyed build, this screen is skipped because `kin.key` is beside the executable. Click **Begin listening** in the public build. Either way, the camera opens and the studio self-view appears.
-3. **Live self-view.** Confirm that you can see yourself in the left studio panel. On a wide display, a separate portrait window opens beside the studio. On a smaller display, the portrait appears inside the studio beside the self-view. The portrait should not show a camera feed. The self-view should be clean: no face circle, chest circle, corner brackets, guide lines, or labels over the video. The preview should feel continuous rather than like a slideshow.
+3. **Live self-view.** Confirm that you can see yourself in the studio beside the portrait. Kin is fullscreen by default; press `F11` to check windowed mode and back. The portrait should be in the same window and should not show a camera feed. The self-view should be clean: no face circle, chest circle, corner brackets, guide lines, or labels over the video. The preview should feel continuous rather than like a slideshow.
 4. **Positioning text.** Sit about 50–90 cm from the camera with your face, shoulders, and upper chest visible. The validation line and positioning card in the rail should change from a warning such as **No face yet** or **Chest not in frame** to a normal listening state. If a warning persists, the text should say what to fix. The self-view should stay free of text and markings. Confirm that no speech or audio is produced.
 5. **Live signals.** Wait for breathing and pulse. Breathing usually appears first. The pulse and breathing cards should show live numbers, and the portrait should move from the measured traces. When a signal is missing, the number should stay blank and the portrait should stop rather than inventing a value.
 6. **Expression default.** Confirm that the expression mirror is off by default and that no emotion or stress label is shown. The optional mirror is a separate consent; it is not required to test the live signal. If you opt in, make a clear expression and confirm that the portrait follows within roughly a beat; the SDK's expression window can add its own delay. The labels describe visible facial shapes, never emotion.
@@ -45,7 +45,7 @@ npm start
 - The self-view is a clean 4:3 video frame with no face circle, chest circle, framing guide, labels, or text over it.
 - Positioning guidance is text in the rail only and never uses the microphone.
 - The camera is requested at 640×480 and 30 fps; the preview is a 640×480 RGBA display copy at about 15 fps, uploaded as a WebGL texture.
-- The layout adapts to the available work area. On 1024×768, 1280×720, 1366×768, and 1920×1080, both the self-view and the portrait remain visible. When the display has room, the portrait opens beside the studio. On a smaller display it shares the stage with the self-view, so it does not cover the rail or the End button.
+- The layout adapts to the display. On 1024×768, 1280×720, 1366×768, and 1920×1080, the portrait and self-view stay together in the fullscreen studio and the rail remains usable. Press `F11` to verify the windowed layout too. In windowed mode on a wide display, the companion portrait can be opened beside the studio; in fullscreen it stays in the studio so it cannot cover the rail or the End button.
 - At a 1280×720 display with 150% scaling (about 853×480 DIP), the rail remains usable and the Pause/End actions stay visible.
 - The portrait moves from measured signals, not a looping animation.
 - The expression mirror is off unless explicitly enabled.
@@ -58,10 +58,10 @@ npm start
 - **Camera does not open:** close other apps that may own the webcam. Kin and vokoscreenNG (or OBS) cannot reliably use the same camera at the same time.
 - **Camera running slowly:** add soft front light, close other camera apps, and keep the camera on a stable mount. Low light can make auto-exposure reduce frame rate.
 - **No positioning text:** confirm the SDK is reporting a warning in the rail card. A correctly framed session shows **Good position**; the self-view never carries an alert or label.
-- **Key rejected or no credits:** create a fresh free key. Do not use a key from a public repository or a shared screenshot. A trial key with no credits cannot start a session.
+- **Key rejected or no credits:** use a valid key from a trial account that still has credits, or request a trial reset through Presage Discord. Do not use a key from a public repository or a shared screenshot. A trial key with no credits cannot start a session.
 - **No pulse yet:** breathing can appear before pulse. Hold still, improve front lighting, and keep the upper chest in frame. Wait for the SDK warm-up.
 - **Session stops with an auth/usage error:** Presage's usage verification could not complete. Check the network and click **Try Again**. Kin will not continue from stale values.
-- **No portrait or companion window:** press `F` in the studio to open it. On a smaller display the portrait is already inside the studio; `F` opens the floating companion instead.
+- **No portrait or companion window:** in fullscreen, the portrait and self-view are already together in the studio. Press `F11` to switch to windowed mode; then press `F` to open the floating companion. Press `F11` again to return to fullscreen.
 - **Present mode:** press `P`; press `P` again to return to the studio.
 
 ## What not to expect

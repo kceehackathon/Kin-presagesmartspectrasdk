@@ -93,6 +93,8 @@ svg { display: block; }
   -webkit-app-region: drag;
 }
 
+.kin-fullscreen .drag-strip { display: none; }
+
 /* ------------------------------------------------------------------ shell */
 
 .app {
@@ -255,7 +257,7 @@ svg { display: block; }
 
 .portrait {
   position: relative;
-  height: min(calc(100vh - 128px), 620px);
+  height: min(calc(100vh - 128px), 900px);
   max-width: 100%;
   aspect-ratio: 600 / 820;
 }
@@ -1360,7 +1362,7 @@ code {
 .app.present { grid-template-columns: 1fr; }
 .app.present .rail { display: none; }
 .app.present .stage-body { padding: 34px 30px 58px; }
-.app.present .portrait { height: min(calc(100vh - 132px), 660px); }
+.app.present .portrait { height: min(calc(100vh - 132px), 900px); }
 .app.present .stage-foot { display: none; }
 .app.present .present-chips { display: flex; }
 .app.present .present-exit { display: inline-flex; }

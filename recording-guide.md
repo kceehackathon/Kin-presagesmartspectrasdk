@@ -27,7 +27,7 @@ Do not open the primary webcam in vokoscreenNG "just in case." Test the exact se
 ## vokoscreenNG setup
 
 1. Download vokoscreenNG from the official page and install it. There is no account or paid tier.
-2. Launch vokoscreenNG. On the **Screen** tab, choose **Fullscreen** and select the display that contains both Kin panels (and the separate portrait window, if it is open). Do not use **Window** for the main recording; it can miss the portrait or the self-view. Do not use **Area** unless you deliberately want to crop.
+2. Launch vokoscreenNG. On the **Screen** tab, choose **Fullscreen** and select the display that contains Kin. Kin opens fullscreen, so the portrait, self-view, and rail are all in one window; do not use **Window** for the main recording. Do not use **Area** unless you deliberately want to crop.
 3. This demo is screen-only. Disable microphone and desktop audio capture in vokoscreenNG; Kin has no synthesized speech or app audio.
 4. Set **Frames** to `30`.
 5. Set **Format** to `MP4` and **Video codec** to `H.264`. If vokoscreenNG asks to download the Cisco OpenH264 encoder, accept it. If MP4 with H.264 is not available on your install, record `MKV` with H.264 and convert or remux to MP4 before upload.
@@ -75,7 +75,7 @@ Kin runs the SmartSpectra measurement loop and a portrait animation. vokoscreenN
 - Record at 30 fps, not 60.
 - Close browsers and other GPU-heavy apps.
 - Keep the vokoscreenNG window minimized.
-- If H.264 encoding is still too heavy, record at 1600×900 or 1280×720. Check that both Kin windows are still readable.
+- If H.264 encoding is still too heavy, record at 1600×900 or 1280×720. Check that the portrait, self-view, and rail text are still readable.
 - Do not solve choppiness by speeding up or slowing down the signal. The video must show a live signal at real time.
 
 ## If you already use OBS
@@ -96,7 +96,7 @@ vokoscreenNG: <https://linuxecke.volkoh.de/vokoscreen/vokoscreen.html>
 
 ## Do not do this
 
-- Before recording, confirm the key has trial credits. If Kin reports **no credits left**, stop and obtain a fresh key; the public build and private keyed build both depend on Presage usage allowance.
+- Before recording, confirm the key has trial credits. If Kin reports **no credits left**, stop and use a valid key from a trial account that still has credits, or request a reset through Presage Discord; the public build and private keyed build both depend on Presage usage allowance.
 - Do not put a SmartSpectra key in the video, the repository, the description, or a public build.
 - Do not use a synthetic pulse or breathing signal to make the portrait move.
 - Do not record a separate camera feed and label it as the live SmartSpectra self-view.

@@ -6,7 +6,7 @@ Tags: `devchallenge` `presagechallenge`
 
 ## What I Built
 
-Kin is an Electron app that uses the official Presage SmartSpectra Node SDK to turn live camera measurements into a portrait. The studio shows the live SmartSpectra self-view and the portrait side by side. The camera view is clean: no face circle, chest circle, guide lines, or labels over the video. The frameless companion portrait is available on demand for a wider display.
+Kin is an Electron app that uses the official Presage SmartSpectra Node SDK to turn live camera measurements into a portrait. It opens as a borderless fullscreen studio and shows the live SmartSpectra self-view and the portrait side by side. The camera view is clean: no face circle, chest circle, guide lines, or labels over the video. A frameless companion portrait is available in windowed mode for a wider display.
 
 The portrait is driven by measured signals, not animation loops. It does not invent a beat, a breath, or a confidence value. When a signal is missing, the portrait holds still and the matching number stays blank. The demo was recorded with me in front of the camera. It does not use a synthetic or pre-recorded signal.
 
@@ -61,7 +61,7 @@ Kin is Electron with a vanilla renderer. The first version ran the SmartSpectra 
 
 Late tuning also mattered. The first native build used a 640×480/30 camera and a processed self-view at roughly 15 fps; it felt immediate. A later detour to 1280×720 with a downsampled display copy introduced a multi-second lag in this setup. I restored the 640×480 camera profile and the 15 fps preview cadence, and an early no-face check showed ~27 ms p50 and ~105 ms p90 from the SDK frame timestamp to delivery. The studio uploads the frame as a WebGL texture rather than painting it with CPU `putImageData`, and only a small compositor-driven pulse light animates over the portrait. An OffscreenCanvas worker was tried, but on a two-core laptop it stole enough CPU to trip the SDK's frame-rate watchdog; the GPU upload keeps the studio thread light without adding another hungry thread. The detailed face is repainted only when the optional expression mirror is on. Expression smoothing remains 0.15 s, which hides classifier jitter; the labels update as new windows arrive.
 
-The studio is a 1280-wide panel that keeps the portrait and self-view together. The companion portrait is optional on demand; it receives only derived animation values over `BroadcastChannel` and never receives camera frames, metric buffers, or the API key. The layout uses the available work area rather than assuming a 1080p screen, and the rail's End action stays accessible.
+The studio fills the display and keeps the portrait and self-view together. It opens fullscreen; `F11` switches to windowed mode. In windowed mode, the companion portrait is optional on demand; it receives only derived animation values over `BroadcastChannel` and never receives camera frames, metric buffers, or the API key. The layout uses the available work area rather than assuming a 1080p screen, and the rail's End action stays accessible.
 
 The SDK provides validation hints such as **No face yet**, **Chest not in frame**, and **Too dark**. Kin shows those hints instead of hiding them. The portrait should say what is wrong instead of guessing.
 
@@ -91,11 +91,11 @@ npm start
 
 ### Use
 
-1. Read the consent screen. Check the camera + pulse + breathing consent and the general-wellness acknowledgement. The expression mirror is optional and off by default.
+1. Read the consent screen. Check the camera + pulse + breathing consent and the general-wellness acknowledgement. The expression mirror is optional and off by default. Kin opens fullscreen; press `F11` to switch to windowed mode.
 2. In the public build, create a free SmartSpectra key at the link above and paste it into the key prompt. In the private keyed judging build, a local `kin.key` beside the executable supplies the key and this screen is skipped. The key is held in memory for the session and is never written to disk or logged by Kin.
-3. After consent and key acceptance (or immediately in the keyed build), the camera opens. The studio shows the portrait and the live local self-view together. The self-view has no lines, circles, or labels over the video. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest visible. Soft, even light in front of you works best. Press `F` if you want the portrait in its own window.
+3. After consent and key acceptance (or immediately in the keyed build), the camera opens. The fullscreen studio shows the portrait and the live local self-view together. The self-view has no lines, circles, or labels over the video. Sit about 50–90 cm from the camera with your face, shoulders, and upper chest visible. Soft, even light in front of you works best.
 4. Wait for the SDK to report signals. Breathing usually appears before pulse. The validation line and positioning card in the rail tell you what to fix; the self-view stays clean. The portrait stays still until a fresh signal arrives.
-5. Press `P` for present mode. Press `F` to reopen the portrait window if you close it.
+5. Press `P` for present mode. Press `F11` to leave or re-enter fullscreen. In windowed mode only, press `F` to open the separate companion portrait window; in fullscreen, the portrait is already part of the studio.
 6. Press **Pause** to release the camera, or **End** to clear the session and the in-memory key.
 
 ### Windows build

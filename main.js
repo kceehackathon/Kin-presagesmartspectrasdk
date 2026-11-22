@@ -375,8 +375,9 @@ function createStudioWindow() {
     height,
     minWidth: Math.min(860, width),
     minHeight: Math.min(620, height),
-    maximizable: false,
-    fullscreenable: false,
+    maximizable: true,
+    fullscreenable: true,
+    fullscreen: true,
     backgroundColor: '#100d0b',
     show: false,
     title: 'Kin',
@@ -401,6 +402,16 @@ function createStudioWindow() {
   });
 
   injectOperatorKey(win, readOperatorKey());
+
+  // The studio starts fullscreen. Keep the page in sync so it can hide the
+  // window drag strip and avoid opening a second frame window over itself.
+  const sendWindowMode = () => {
+    if (win.isDestroyed()) return;
+    win.webContents.send('kin:window-mode', { fullscreen: win.isFullScreen() });
+  };
+  win.on('enter-full-screen', sendWindowMode);
+  win.on('leave-full-screen', sendWindowMode);
+  win.webContents.on('did-finish-load', sendWindowMode);
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isStageUrl(url)) {
