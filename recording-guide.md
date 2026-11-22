@@ -103,4 +103,4 @@ vokoscreenNG: <https://linuxecke.volkoh.de/vokoscreen/vokoscreen.html>
 - Do not enable vokoscreenNG's camera while Kin owns the primary webcam.
 - Do not add medical, diagnosis, treatment, emotion, or stress claims in the narration, captions, or description.
 - Do not upload the video as Private and assume judges can open it.
-- Kin's positioning cues are on-screen text. Do not describe them as recorded speech or as cloud audio; the microphone is never opened by Kin.
+- Kin's positioning cues are text in the rail; the self-view has no text or markings over it. Do not describe them as recorded speech or as cloud audio; the microphone is never opened by Kin.
