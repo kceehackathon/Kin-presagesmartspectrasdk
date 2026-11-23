@@ -21,7 +21,7 @@ Download `Kin-1.0.0-Setup.exe` or `Kin-1.0.0-Portable.exe` from the [Releases pa
 
 ```bash
 git clone https://github.com/kceehackathon/Kin-presagesmartspectrasdk.git
-cd kin
+cd Kin-presagesmartspectrasdk
 npm install
 npm start
 ```

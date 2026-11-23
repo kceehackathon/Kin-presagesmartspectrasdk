@@ -91,7 +91,7 @@ The repository includes the Microsoft VC++ runtime DLLs that the native SmartSpe
 
 ```bash
 git clone https://github.com/kceehackathon/Kin-presagesmartspectrasdk.git
-cd kin
+cd Kin-presagesmartspectrasdk
 npm install
 npm start
 ```

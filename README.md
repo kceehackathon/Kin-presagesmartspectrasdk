@@ -79,7 +79,7 @@ The free Presage trial has a usage allowance. If the demo key runs out of credit
 
 ```bash
 git clone https://github.com/kceehackathon/Kin-presagesmartspectrasdk.git
-cd kin
+cd Kin-presagesmartspectrasdk
 npm install
 npm start
 ```
