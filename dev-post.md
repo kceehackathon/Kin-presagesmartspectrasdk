@@ -16,7 +16,9 @@ The self-view is deliberately clean: no face circle, chest circle, corner bracke
 
 ## Demo
 
-Demo video: pending YouTube upload.
+{% embed https://youtu.be/awWR1V5nofc %}
+
+Watch on YouTube: <https://youtu.be/awWR1V5nofc>
 
 The video shows the consent screen, the live self-view, the live pulse and breathing values, the portrait, and the privacy panel. It ends by stopping the session and showing that the camera stops. The demo was recorded with the release build, which bundles the author's demo key, so the key screen is skipped. The demo was recorded with vokoscreenNG; Kin has no recording feature. The demo script is in [`demo-script.md`](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/blob/main/demo-script.md).
 

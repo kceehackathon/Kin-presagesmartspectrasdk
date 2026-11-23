@@ -12,7 +12,7 @@ Kin writes no video, audio, images, measurements, session history, or API key to
 
 ## The demo
 
-Demo video: pending YouTube upload. · [Release](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/releases/latest) · [Test checklist](TESTING.md) · [Demo script](demo-script.md) · [Recording guide](recording-guide.md)
+[Demo video](https://youtu.be/awWR1V5nofc) · [Release](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/releases/latest) · [Test checklist](TESTING.md) · [Demo script](demo-script.md) · [Recording guide](recording-guide.md)
 
 The video is recorded from a live session with a real person in front of the camera. It is not a synthetic signal.
 
@@ -71,7 +71,7 @@ Tips for a smooth test:
 - Pulse usually appears within about 15–60 seconds; breathing often comes first.
 - The expression mirror is optional and heavier; leave it off unless you want to try it.
 
-Running from source instead (below) needs your own free SmartSpectra key, in `.env` or at the key prompt. The demo video is also a quick no-setup check of the live signal integration.
+Running from source instead (below) needs your own free SmartSpectra key, in `.env` or at the key prompt. The [demo video](https://youtu.be/awWR1V5nofc) is also a quick no-setup check of the live signal integration.
 
 The free Presage trial has a usage allowance. If the demo key runs out of credits or is rejected, Kin shows the key page with a message, and you can paste a free key from <https://physiology.presagetech.com/auth/register>. If the studio says **This API key has no credits left**, the account is out of credits; another key from that same account will not restore them. Kin cannot bypass Presage metering. Request a trial reset through the Presage Discord link in the challenge resources, or use a key from an account that still has credits. Then fully close the app and open it again.
 
@@ -343,7 +343,7 @@ Kin’s own code is MIT licensed. SmartSpectra is proprietary software © Presag
 
 - Challenge: [Presage SmartSpectra SDK Challenge](https://dev.to/challenges/presage-2026-11-04) `#presagechallenge`
 - Repository: <https://github.com/kceehackathon/Kin-presagesmartspectrasdk>
-- Demo video: pending YouTube upload.
+- Demo video: <https://youtu.be/awWR1V5nofc>
 - Windows build: [latest release](https://github.com/kceehackathon/Kin-presagesmartspectrasdk/releases/latest) (installer + portable EXE)
 - DEV post: the submission post on DEV, tagged `#presagechallenge` and `#devchallenge`.
 - Solo entry. No Kin account/login or team. The Windows release needs no key (running from source needs one); see **Testing for judges**.
