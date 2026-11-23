@@ -30,3 +30,9 @@ scripts/native-frame.*
 /shot*.png
 /script*shot*.png
 /return
+
+# Local test artifacts (may contain camera frames)
+live-test*
+start-test*
+*.out
+*.err

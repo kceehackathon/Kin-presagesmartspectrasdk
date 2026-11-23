@@ -5,6 +5,11 @@
 
 import { mountPortrait, idleState } from './portrait.js';
 
+// Write text only when it changes (state arrives ~10 times a second).
+function setText(el, value) {
+  if (el && el.textContent !== value) el.textContent = value;
+}
+
 const $ = (id) => document.getElementById(id);
 
 const frameStatus = $('frame-status');
@@ -30,20 +35,20 @@ let lastMessageAt = 0;
 let wentIdle = false;
 
 function applyMeta() {
-  frameStatusLabel.textContent = latest.status.label || 'Waiting for studio';
+  setText(frameStatusLabel, latest.status.label || 'Waiting for studio');
   frameStatus.dataset.tone = latest.status.tone || 'muted';
 
   const pulse = latest.ui && latest.ui.pulse;
   const breath = latest.ui && latest.ui.breath;
   const face = latest.ui && latest.ui.face;
 
-  framePulse.textContent = pulse && pulse.enabled && pulse.rate != null
+  setText(framePulse, pulse && pulse.enabled && pulse.rate != null
     ? String(Math.round(pulse.rate))
-    : '—';
-  frameBreath.textContent = breath && breath.enabled && breath.rate != null
+    : '—');
+  setText(frameBreath, breath && breath.enabled && breath.rate != null
     ? String(Math.round(breath.rate))
-    : '—';
-  frameExpression.textContent = face && face.enabled && face.seen ? face.label : '—';
+    : '—');
+  setText(frameExpression, face && face.enabled && face.seen ? face.label : '—');
 }
 
 function receive(data) {
@@ -123,11 +128,11 @@ function loop(now) {
     portrait.render(latest.render || idleState);
     lastPaintAt = now;
   }
-  requestAnimationFrame(loop);
 }
 
 applyMeta();
 announce();
 setTimeout(announce, 450);
 setTimeout(announce, 1200);
-requestAnimationFrame(loop);
+// A timer instead of a perpetual rAF loop: see renderer.js startLoop().
+setInterval(() => loop(performance.now()), 100);

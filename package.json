@@ -43,6 +43,7 @@
       "stage.html",
       "styles.css",
       "src/preload-studio.js",
+      "src/camera-settings.cjs",
       "dist/**",
       "assets/**",
       "build/icon.png",
@@ -87,6 +88,13 @@
         {
           "from": "node_modules/@smartspectra/node-sdk-win32-x64/",
           "to": "smartspectra/"
+        },
+        {
+          "from": ".",
+          "to": ".",
+          "filter": [
+            ".env"
+          ]
         }
       ],
       "extraFiles": [

@@ -43,4 +43,40 @@ contextBridge.exposeInMainWorld('kin', {
     windowModeListeners.add(callback);
     return () => windowModeListeners.delete(callback);
   },
+  // Camera settings: capture rate/size and self-view rate only. The main
+  // process validates every value against a fixed list before saving.
+  getCameraSettings() {
+    return ipcRenderer.invoke('kin:settings-get');
+  },
+  setCameraSettings(settings) {
+    if (!settings || typeof settings !== 'object') return Promise.resolve(null);
+    return ipcRenderer.invoke('kin:settings-set', {
+      captureFps: Number(settings.captureFps),
+      resolution: String(settings.resolution || ''),
+      selfView: String(settings.selfView || ''),
+      cameraMode: String(settings.cameraMode || ''),
+    });
+  },
+  // Direct mode: one camera frame (raw pixels, in memory) for the SDK in the
+  // main process. Resolves once the SDK has taken it, so the studio keeps at
+  // most one frame in flight.
+  sendFrame(frame) {
+    if (!frame || !(frame.buffer instanceof ArrayBuffer || ArrayBuffer.isView(frame.buffer))) {
+      return Promise.resolve(false);
+    }
+    return ipcRenderer.invoke('kin:frame', {
+      session: Number(frame.session),
+      buffer: frame.buffer,
+      width: Number(frame.width),
+      height: Number(frame.height),
+      stride: Number(frame.stride),
+      pixelFormat: Number(frame.pixelFormat),
+      timestampUs: Number(frame.timestampUs),
+    });
+  },
+  windowControl(action) {
+    if (['minimize', 'maximize', 'fullscreen', 'close'].includes(action)) {
+      ipcRenderer.send('kin:window', action);
+    }
+  },
 });

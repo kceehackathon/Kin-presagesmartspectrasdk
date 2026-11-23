@@ -10,6 +10,19 @@
 <body>
   <div class="drag-strip" aria-hidden="true"></div>
 
+  <!-- Window controls: always visible, above every screen and dialog. -->
+  <div class="window-controls" role="group" aria-label="Window controls">
+    <button type="button" id="win-min" title="Minimize" aria-label="Minimize">
+      <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5h8" stroke="currentColor" stroke-width="1.2"/></svg>
+    </button>
+    <button type="button" id="win-max" title="Maximize" aria-label="Maximize">
+      <svg viewBox="0 0 12 12" aria-hidden="true" id="win-max-icon"><rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+    </button>
+    <button type="button" id="win-close" class="close" title="Close Kin" aria-label="Close Kin">
+      <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.2"/></svg>
+    </button>
+  </div>
+
   <div class="app" id="app" data-screen="consent">
     <main class="stage" id="stage">
       <header class="stage-head">
@@ -53,7 +66,10 @@
           <div class="portrait-caption" id="portrait-caption">No recording · No body upload</div>
         </div>
 
-        <div class="stage-mirror" aria-label="Live local camera preview">
+        <div class="stage-mirror" data-source="direct" aria-label="Live local camera preview">
+          <!-- Direct mode: the live camera stream itself (never waits on measurement). -->
+          <video id="stage-video" muted playsinline disablepictureinpicture aria-label="Live local camera preview"></video>
+          <!-- Fallback: the SDK's processed frames, drawn with WebGL. -->
           <canvas id="stage-preview" width="640" height="480" aria-label="Live local camera preview"></canvas>
         </div>
       </div>
@@ -81,6 +97,12 @@
           <p>Live signals, kept close</p>
         </div>
         <div class="rail-tools">
+          <button class="icon-btn" id="settings-btn" type="button" title="Camera settings (S)" aria-label="Camera settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 8h3l1.5-2h7L17 8h3v10H4z"/><circle cx="12" cy="13" r="3.2"/>
+              <path d="M19.5 3.5v3M18 5h3"/>
+            </svg>
+          </button>
           <button class="icon-btn" id="frame-btn" type="button" title="Open the frame window (F)" aria-label="Open the frame window">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="4" width="18" height="13" rx="2"/>
@@ -143,10 +165,8 @@
             <span class="signal-name">Visible expression</span>
             <span class="signal-state" id="expression-state">Off</span>
           </div>
-          <div class="signal-main">
-            <span class="signal-value is-text" id="expression-value">—</span>
-            <span class="signal-unit">mirror</span>
-          </div>
+          <!-- Animated emoji that mirrors the visible expression (src/emoji.js). -->
+          <div class="expression-emoji" id="expression-emoji"></div>
           <div class="expression-bars" id="expression-bars" aria-hidden="true"></div>
           <div class="signal-meta">
             <span class="confidence-label" id="expression-conf">Expression mirror is off</span>
@@ -216,7 +236,7 @@
             </div>
             <div>
               <h3>The portrait responds</h3>
-              <p>A warm light follows your measured pulse, the traces show your breathing and pulse, and — only if you opt in — the face mirrors visible expression. When a signal is missing, the portrait stays still.</p>
+              <p>A warm light follows your measured pulse, the chest trace shows your breathing, and — only if you opt in — the face mirrors visible expression. When a signal is missing, the portrait stays still.</p>
             </div>
           </div>
 
@@ -228,7 +248,7 @@
             </div>
             <div>
               <h3>No body data saved</h3>
-              <p>Kin writes no video, audio, images, measurements, history, or API key to disk. SmartSpectra may keep a technical device-key/model cache and diagnostic logs under Windows app data; they contain no camera frames, audio, or readings. The Kin session itself is non-persistent.</p>
+              <p>Kin writes no video, audio, images, measurements, history, or API key to disk. The only file Kin saves is a small preferences file with your camera settings (mode, frame rate, resolution, self-view on/off). SmartSpectra may keep a technical device-key/model cache and diagnostic logs under Windows app data; they contain no camera frames, audio, or readings. The Kin session itself is non-persistent.</p>
             </div>
           </div>
 
@@ -268,10 +288,10 @@
           <details>
             <summary>The full data note</summary>
             <ul>
-              <li><strong>Storage:</strong> Kin itself stores no recordings, images, measurements, history, or API key. SmartSpectra may keep a technical device-key/model cache and diagnostic logs under Windows app data; these contain no camera frames, audio, or measured values. Chromium may keep ordinary app cache files; the Kin session is non-persistent.</li>
+              <li><strong>Storage:</strong> Kin itself stores no recordings, images, measurements, history, or API key. The one exception is a small preferences file, <code>%APPDATA%\\Kin\\kin-settings.json</code>, that holds only your camera settings (mode, frame rate, resolution, self-view on/off) - never frames, readings, or keys. SmartSpectra may keep a technical device-key/model cache and diagnostic logs under Windows app data; these contain no camera frames, audio, or measured values. Chromium may keep ordinary app cache files; the Kin session is non-persistent.</li>
               <li><strong>Sharing:</strong> none by Kin. The native SDK contacts Presage for authentication, usage verification, and encrypted models. Those requests do not carry preview frames, audio, or measured values.</li>
               <li><strong>Retention:</strong> session state lives in memory and disappears on End or close. Technical SDK/app files may remain until you delete them; they contain no body data.</li>
-              <li><strong>Deletion:</strong> use End session or close Kin to clear session state. On Windows, the technical files are under <code>%APPDATA%\\Kin</code>, <code>%LOCALAPPDATA%\\Presage\\Physiology</code>, <code>%LOCALAPPDATA%\\SmartSpectraSDK</code>, and <code>%LOCALAPPDATA%\\Temp\\SmartSpectra*.log.*</code>. Delete them to remove those caches and logs. There is no Kin account or cloud copy.</li>
+              <li><strong>Deletion:</strong> use End session or close Kin to clear session state. On Windows, the technical files are under <code>%APPDATA%\\Kin</code>, <code>%LOCALAPPDATA%\\Presage\\Physiology</code>, <code>%LOCALAPPDATA%\\SmartSpectraSDK</code>, and <code>%LOCALAPPDATA%\\Temp\\SmartSpectra*.log.*</code>. Delete them to remove those caches, logs, and your saved camera settings. There is no Kin account or cloud copy.</li>
               <li><strong>SDK telemetry:</strong> disabled. Kin sets <code>enableTelemetry: false</code>.</li>
               <li><strong>AI:</strong> none. Kin does not use LLM Insights or send data to an AI service.</li>
             </ul>
@@ -327,7 +347,7 @@
         <section class="privacy-block">
           <h3>In memory, only while you listen</h3>
           <ul>
-            <li>Camera frames, shown only in the local self-view and processed in memory by the native SmartSpectra SDK. No frame is recorded or written.</li>
+            <li>Camera frames, shown only in the local self-view and processed in memory by the native SmartSpectra SDK. No frame is recorded or written. In the optional Smooth preview mode, this window opens the camera (video only, never audio) and passes frames to the SDK in memory on this device.</li>
             <li>Derived animation values: pulse envelope, chest phase, expression targets.</li>
             <li>Your API key, held by the SDK for the session.</li>
           </ul>
@@ -352,7 +372,7 @@
         <div class="privacy-stack">
           <section class="privacy-block">
             <h3>Retention &amp; deletion</h3>
-            <p>There is no database, no recording, and no persistent Electron session. End session or close Kin to clear the key and every derived value from memory. SmartSpectra may leave a technical device-key/model cache and diagnostic logs under Windows app data, and Chromium may keep ordinary app cache files. None contain camera frames, audio, or measured values; the README lists the folders you can delete.</p>
+            <p>There is no database, no recording, and no persistent Electron session. The only thing kept between sessions is a small file of your camera preferences (mode, frame rate, resolution, self-view), never frames, readings, or keys. End session or close Kin to clear the key and every derived value from memory. SmartSpectra may leave a technical device-key/model cache and diagnostic logs under Windows app data, and Chromium may keep ordinary app cache files. None contain camera frames, audio, or measured values; the README lists the folders you can delete (including the preferences file).</p>
           </section>
           <section class="privacy-block">
             <h3>AI</h3>
@@ -366,6 +386,84 @@
       <div class="card-actions">
         <span class="note">The full note is also in the repository README and the DEV submission.</span>
         <button class="btn-clay" id="privacy-done" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Camera settings ---------------------------------------------------->
+  <div class="overlay hidden" id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="card settings-card">
+      <button class="modal-close" id="settings-close" type="button" aria-label="Close camera settings">×</button>
+      <div class="eyebrow">Camera settings</div>
+      <h1 id="settings-title">Tune Kin to this device</h1>
+      <p class="lede">Lower settings give the measurement engine more room, which keeps the camera smooth on lighter laptops.</p>
+
+      <section class="recommend" id="settings-recommend">
+        <div class="recommend-head">
+          <span class="recommend-badge">Recommended</span>
+          <strong id="recommend-summary">Checking this device…</strong>
+        </div>
+        <ul class="recommend-reasons" id="recommend-reasons"></ul>
+        <button class="btn-clay small" id="recommend-apply" type="button">Use recommended</button>
+      </section>
+
+      <div class="settings-grid">
+        <fieldset class="setting">
+          <legend>Camera mode</legend>
+          <div class="segmented" data-setting="cameraMode">
+            <label><input type="radio" name="cameraMode" value="reliable"><span>Reliable (recommended)</span></label>
+            <label><input type="radio" name="cameraMode" value="smooth"><span>Smooth preview</span></label>
+          </div>
+          <p class="setting-hint">Reliable: the measurement engine runs the camera, so readings keep going on lighter laptops; the self-view updates about 15 times a second. Smooth preview: a full-speed live self-view, for faster computers.</p>
+        </fieldset>
+        <fieldset class="setting">
+          <legend>Measurement frame rate</legend>
+          <div class="segmented" data-setting="captureFps">
+            <label><input type="radio" name="captureFps" value="25"><span>25 fps (lighter)</span></label>
+            <label><input type="radio" name="captureFps" value="30"><span>30 fps</span></label>
+          </div>
+          <p class="setting-hint">Camera frames Kin measures each second. The measurement engine needs at least 25. 30 is the most reliable; 25 is a little lighter.</p>
+        </fieldset>
+
+        <fieldset class="setting">
+          <legend>Camera resolution</legend>
+          <div class="segmented" data-setting="resolution">
+            <label><input type="radio" name="resolution" value="640x480"><span>Standard 640×480</span></label>
+            <label><input type="radio" name="resolution" value="1280x720"><span>HD 1280×720</span></label>
+          </div>
+          <p class="setting-hint">Standard is recommended. HD is sharper but about three times the work.</p>
+        </fieldset>
+
+        <fieldset class="setting">
+          <legend>Self-view</legend>
+          <div class="segmented" data-setting="selfView">
+            <label><input type="radio" name="selfView" value="on"><span>On</span></label>
+            <label><input type="radio" name="selfView" value="off"><span>Off</span></label>
+          </div>
+          <p class="setting-hint">Your live camera beside the portrait. Off keeps measuring with the portrait only.</p>
+        </fieldset>
+      </div>
+
+      <section class="health" id="settings-health" data-tone="idle">
+        <div class="health-head">
+          <span class="dot"></span>
+          <strong id="health-label">Live performance appears while Kin listens</strong>
+        </div>
+        <div class="health-stats">
+          <div><span>Measuring</span><strong id="health-camera">—</strong></div>
+          <div><span>Self-view</span><strong id="health-preview">—</strong></div>
+          <div><span>Reading delay</span><strong id="health-lag">—</strong></div>
+        </div>
+      </section>
+
+      <ul class="settings-tips" id="settings-tips"></ul>
+
+      <div class="card-actions">
+        <span class="note" id="settings-note">Saved on this device. Only camera preferences are stored — never frames or readings.</span>
+        <div class="settings-actions">
+          <button class="text-btn" id="settings-cancel" type="button">Cancel</button>
+          <button class="btn-clay" id="settings-apply" type="button">Apply</button>
+        </div>
       </div>
     </div>
   </div>

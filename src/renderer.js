@@ -12,6 +12,8 @@
 import { decodeMetrics } from '@smartspectra/node-sdk/messages';
 import { SignalEngine } from './signals.js';
 import { mountPortrait } from './portrait.js';
+import { mountEmoji, EXPRESSIONS } from './emoji.js';
+import { createDirectCamera, directCameraSupported } from './direct-camera.js';
 
 // Stable integer values from the SmartSpectra protocol. Defining them locally
 // keeps the native SDK (and its koffi binding) out of the renderer bundle.
@@ -51,6 +53,8 @@ const els = {
   stageStateLabel: $('stage-state-label'),
   stageTime: $('stage-time'),
   stagePreview: $('stage-preview'),
+  stageVideo: $('stage-video'),
+  stageMirror: document.querySelector('.stage-mirror'),
 
   privacyChip: $('privacy-chip'),
   privacyBtn: $('privacy-btn'),
@@ -88,7 +92,7 @@ const els = {
 
   cardExpression: $('card-expression'),
   expressionState: $('expression-state'),
-  expressionValue: $('expression-value'),
+  expressionEmoji: $('expression-emoji'),
   expressionBars: $('expression-bars'),
   expressionConf: $('expression-conf'),
   expressionConfBar: $('expression-conf-bar'),
@@ -120,10 +124,81 @@ const els = {
   confirmEnd: $('confirm-end'),
 
   toast: $('toast'),
+
+  winMin: $('win-min'),
+  winMax: $('win-max'),
+  winMaxIcon: $('win-max-icon'),
+  winClose: $('win-close'),
+
+  settingsBtn: $('settings-btn'),
+  settings: $('settings'),
+  settingsClose: $('settings-close'),
+  settingsCancel: $('settings-cancel'),
+  settingsApply: $('settings-apply'),
+  settingsNote: $('settings-note'),
+  recommendSummary: $('recommend-summary'),
+  recommendReasons: $('recommend-reasons'),
+  recommendApply: $('recommend-apply'),
+  settingsTips: $('settings-tips'),
+  settingsHealth: $('settings-health'),
+  healthLabel: $('health-label'),
+  healthCamera: $('health-camera'),
+  healthPreview: $('health-preview'),
+  healthLag: $('health-lag'),
 };
 
 const engine = new SignalEngine();
 const portrait = mountPortrait($('portrait'));
+const expressionEmoji = mountEmoji(els.expressionEmoji);
+
+// The studio's own camera stream: smooth native self-view, frames copied on
+// the side to the SDK (see src/direct-camera.js). Falls back to the SDK's
+// camera + processed-frame preview if the camera cannot be opened here.
+const directCamera = createDirectCamera({
+  video: els.stageVideo,
+  sendFrame: (frame) => (window.kin && typeof window.kin.sendFrame === 'function'
+    ? window.kin.sendFrame(frame)
+    : Promise.resolve(false)),
+  onEnded: () => {
+    if (sdkStatus === 'running' || sdkStatus === 'starting') {
+      handleFailure(7, 'The camera was disconnected.', true);
+    }
+  },
+});
+let cameraSource = 'direct';
+
+// Frame-layout safety net. NV12 is ~3x cheaper per frame than RGBA on the
+// test laptop, but it is not the layout the SDK's own Electron binding uses.
+// If the SDK runs for 12 s with frames flowing and never reports anything
+// that needs a detected face (a position hint, or a reading), switch the
+// pump to RGBA for the rest of this app run.
+const FACE_EVIDENCE_CODES = new Set([2, 3, 4, 7, 12, 13, 14, 15, 16, 17]);
+let layoutWatch = null; // { token, since, evidence }
+let rgbaRemembered = false;
+
+function noteFaceEvidence() {
+  if (layoutWatch) layoutWatch.evidence = true;
+}
+
+function checkFrameLayout(now) {
+  const w = layoutWatch;
+  if (!w || w.evidence || w.token !== sessionToken || cameraSource !== 'direct') return;
+  if (sdkStatus !== 'running') return;
+  if (w.since == null) {
+    w.since = now;
+    return;
+  }
+  if (engine.pulseSeen || engine.breathSeen || engine.faceSeen) {
+    w.evidence = true;
+    return;
+  }
+  if (now - w.since > 12000 && directCamera.pixelMode === 'nv12') {
+    console.warn('[kin] no face evidence from NV12 frames after 12 s; switching to RGBA frames');
+    directCamera.setPixelMode('rgba');
+    rgbaRemembered = true;
+    w.evidence = true;
+  }
+}
 
 // ------------------------------------------------------------------ state
 
@@ -151,6 +226,83 @@ let lastUiPaint = 0;
 let lastPortraitPaint = 0;
 let lastBroadcast = 0;
 let lastFrameAt = performance.now();
+
+// Read-only diagnostics for a live performance check. These are counters only:
+// no frames, measurements, key material, or user data are exposed.
+const perfState = {
+  startedAt: performance.now(),
+  previewEvents: 0,
+  previewPaints: 0,
+  previewPaintMax: 0,
+  lastPreviewAt: 0,
+  previewGapMax: 0,
+  metricsEvents: 0,
+  metricsDecodeTotal: 0,
+  metricsDecodeMax: 0,
+  longTasks: 0,
+  longTaskMax: 0,
+};
+window.__kinPerf = perfState;
+if (typeof PerformanceObserver === 'function') {
+  try {
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        perfState.longTasks += 1;
+        if (entry.duration > perfState.longTaskMax) perfState.longTaskMax = entry.duration;
+      }
+    }).observe({ entryTypes: ['longtask'] });
+  } catch {
+    /* long-task timing is not available in this Chromium build */
+  }
+}
+
+// A 5-second rolling summary in the dev console (forwarded to the terminal by
+// main.js in unpackaged builds). Counters only; no frame or reading values.
+{
+  let last = { ...perfState, at: performance.now() };
+  let camLast = { read: 0, sent: 0, busySkips: 0 };
+  setInterval(() => {
+    const now = performance.now();
+    const seconds = Math.max(0.001, (now - last.at) / 1000);
+    const previews = perfState.previewEvents - last.previewEvents;
+    const metrics = perfState.metricsEvents - last.metricsEvents;
+    const cam = directCamera.stats;
+    // stats reset to 0 when a camera session starts; treat that as a new base.
+    if (cam.read < camLast.read) camLast = { read: 0, sent: 0, busySkips: 0 };
+    const camRead = cam.read - camLast.read;
+    const camText = `camera read ${(camRead / seconds).toFixed(1)} fps · sent ${((cam.sent - camLast.sent) / seconds).toFixed(1)} fps · busy skips ${cam.busySkips - camLast.busySkips} · ${cam.format || '-'} · ${cam.thread || '?'} thread · `;
+    camLast = { read: cam.read, sent: cam.sent, busySkips: cam.busySkips };
+    if (!previews && !metrics && !camRead) return;
+    const paints = perfState.previewPaints - last.previewPaints;
+    const longTasks = perfState.longTasks - last.longTasks;
+    console.log(
+      `[kin-ui] ${camText}preview in ${(previews / seconds).toFixed(1)} fps · painted ${(paints / seconds).toFixed(1)} fps · ` +
+      `paint max ${perfState.previewPaintMax.toFixed(1)} ms · gap max ${Math.round(perfState.previewGapMax)} ms · ` +
+      `metrics ${metrics} · decode max ${perfState.metricsDecodeMax.toFixed(1)} ms · ` +
+      `long tasks ${longTasks} (max ${Math.round(perfState.longTaskMax)} ms) · pulse ${engine.pulseRate ? 'live' : 'none'}`,
+    );
+    perfState.previewPaintMax = 0;
+    perfState.previewGapMax = 0;
+    perfState.metricsDecodeMax = 0;
+    perfState.longTaskMax = 0;
+    last = { ...perfState, at: now };
+  }, 5000);
+}
+
+// Text and style writes are skipped when the value is unchanged. Rewriting
+// identical text still replaces the text node and dirties layout, which the
+// signal cards would otherwise do ~5 times a second once readings arrive.
+function setText(el, value) {
+  if (el.textContent !== value) el.textContent = value;
+}
+
+function setStyle(el, prop, value) {
+  if (el.style[prop] !== value) el.style[prop] = value;
+}
+
+function setData(el, key, value) {
+  if (el.dataset[key] !== value) el.dataset[key] = value;
+}
 
 let toastTimer = null;
 let noticeVisible = false;
@@ -308,12 +460,41 @@ const ERROR_COPY = {
 
 // -------------------------------------------------------------- sparklines
 
+// Sparkline sizes come from a ResizeObserver instead of getBoundingClientRect,
+// which forced a synchronous layout on every UI paint. Each canvas is redrawn
+// only when its data, color, or size changed.
+const sparkSizes = new Map();
+const sparkSignatures = new Map();
+const sparkObserver = typeof ResizeObserver === 'function'
+  ? new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const box = entry.contentRect;
+      sparkSizes.set(entry.target, { width: box.width, height: box.height });
+      sparkSignatures.delete(entry.target);
+    }
+  })
+  : null;
+
+function sparkSize(canvas) {
+  if (!sparkObserver) return canvas.getBoundingClientRect();
+  if (!sparkSizes.has(canvas)) {
+    sparkObserver.observe(canvas);
+    const rect = canvas.getBoundingClientRect();
+    sparkSizes.set(canvas, { width: rect.width, height: rect.height });
+  }
+  return sparkSizes.get(canvas);
+}
+
 function drawSparkline(canvas, values, color) {
-  const rect = canvas.getBoundingClientRect();
+  const rect = sparkSize(canvas);
   if (!rect.width || !rect.height) return;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const width = Math.max(1, Math.round(rect.width * dpr));
   const height = Math.max(1, Math.round(rect.height * dpr));
+  const last = values.length ? values[values.length - 1] : 'e';
+  const signature = `${width}x${height}|${color}|${values.length}|${last}|${values.length > 1 ? values[0] : ''}`;
+  if (sparkSignatures.get(canvas) === signature) return;
+  sparkSignatures.set(canvas, signature);
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
     canvas.height = height;
@@ -370,8 +551,8 @@ function paintPulse(ui, paused, errored) {
   const enabled = p.enabled && statusKind !== 'idle';
   const live = enabled && p.live && !paused && !errored;
 
-  els.cardPulse.dataset.state = !enabled ? 'off' : live ? 'live' : 'on';
-  els.pulseState.textContent = !enabled
+  setData(els.cardPulse, 'state', !enabled ? 'off' : live ? 'live' : 'on');
+  setText(els.pulseState, !enabled
     ? 'Off'
     : paused
       ? 'Paused'
@@ -381,25 +562,25 @@ function paintPulse(ui, paused, errored) {
           ? 'Live'
           : p.seen
             ? 'Holding'
-            : 'Warming';
+            : 'Warming');
 
-  els.pulseValue.textContent = enabled && p.rate != null ? String(Math.round(p.rate)) : '—';
+  setText(els.pulseValue, enabled && p.rate != null ? String(Math.round(p.rate)) : '—');
 
   if (!enabled) {
-    els.pulseConf.textContent = 'Pulse is off';
+    setText(els.pulseConf, 'Pulse is off');
   } else if (paused) {
-    els.pulseConf.textContent = p.rate != null ? 'Paused · last estimate' : 'Paused';
+    setText(els.pulseConf, p.rate != null ? 'Paused · last estimate' : 'Paused');
   } else if (errored) {
-    els.pulseConf.textContent = p.rate != null ? 'Stopped · last estimate' : 'No signal';
+    setText(els.pulseConf, p.rate != null ? 'Stopped · last estimate' : 'No signal');
   } else if (p.rate != null) {
-    els.pulseConf.textContent = `${p.stable ? 'Stable' : 'Estimate'} · ${Math.round(p.confidence)}%`;
+    setText(els.pulseConf, `${p.stable ? 'Stable' : 'Estimate'} · ${Math.round(p.confidence)}%`);
   } else {
-    els.pulseConf.textContent = 'Warming · usually ~12s';
+    setText(els.pulseConf, 'Warming · usually ~12s');
   }
 
   const width = enabled && p.rate != null ? `${Math.round(clamp(p.confidence, 0, 100))}%` : '0%';
-  els.pulseConfBar.style.width = width;
-  els.pulseConfBar.style.background = p.stable ? 'var(--sage)' : 'var(--clay)';
+  setStyle(els.pulseConfBar, 'width', width);
+  setStyle(els.pulseConfBar, 'background', p.stable ? 'var(--sage)' : 'var(--clay)');
 
   drawSparkline(els.pulseSpark, enabled ? ui.pulseHistory : [], '#bf6a45');
 }
@@ -409,8 +590,8 @@ function paintBreath(ui, paused, errored) {
   const enabled = b.enabled && statusKind !== 'idle';
   const live = enabled && b.live && !paused && !errored;
 
-  els.cardBreath.dataset.state = !enabled ? 'off' : live ? 'live' : 'on';
-  els.breathState.textContent = !enabled
+  setData(els.cardBreath, 'state', !enabled ? 'off' : live ? 'live' : 'on');
+  setText(els.breathState, !enabled
     ? 'Off'
     : paused
       ? 'Paused'
@@ -420,25 +601,25 @@ function paintBreath(ui, paused, errored) {
           ? 'Live'
           : b.seen
             ? 'Holding'
-            : 'Warming';
+            : 'Warming');
 
-  els.breathValue.textContent = enabled && b.rate != null ? String(Math.round(b.rate)) : '—';
+  setText(els.breathValue, enabled && b.rate != null ? String(Math.round(b.rate)) : '—');
 
   if (!enabled) {
-    els.breathConf.textContent = 'Breathing is off';
+    setText(els.breathConf, 'Breathing is off');
   } else if (paused) {
-    els.breathConf.textContent = b.rate != null ? 'Paused · last estimate' : 'Paused';
+    setText(els.breathConf, b.rate != null ? 'Paused · last estimate' : 'Paused');
   } else if (errored) {
-    els.breathConf.textContent = b.rate != null ? 'Stopped · last estimate' : 'No signal';
+    setText(els.breathConf, b.rate != null ? 'Stopped · last estimate' : 'No signal');
   } else if (b.rate != null) {
-    els.breathConf.textContent = `${b.stable ? 'Stable' : 'Estimate'} · ${Math.round(b.confidence)}%`;
+    setText(els.breathConf, `${b.stable ? 'Stable' : 'Estimate'} · ${Math.round(b.confidence)}%`);
   } else {
-    els.breathConf.textContent = 'Warming · usually ~30s';
+    setText(els.breathConf, 'Warming · usually ~30s');
   }
 
   const width = enabled && b.rate != null ? `${Math.round(clamp(b.confidence, 0, 100))}%` : '0%';
-  els.breathConfBar.style.width = width;
-  els.breathConfBar.style.background = b.stable ? 'var(--sage)' : 'var(--clay)';
+  setStyle(els.breathConfBar, 'width', width);
+  setStyle(els.breathConfBar, 'background', b.stable ? 'var(--sage)' : 'var(--clay)');
 
   drawSparkline(els.breathSpark, enabled ? ui.breathHistory : [], '#7e8c6a');
 }
@@ -447,8 +628,8 @@ function paintExpression(ui, paused, errored) {
   const f = ui.face;
   const enabled = f.enabled && statusKind !== 'idle';
 
-  els.cardExpression.dataset.state = !enabled ? 'off' : f.seen ? 'live' : 'on';
-  els.expressionState.textContent = !enabled
+  setData(els.cardExpression, 'state', !enabled ? 'off' : f.seen ? 'live' : 'on');
+  setText(els.expressionState, !enabled
     ? 'Off'
     : paused
       ? 'Paused'
@@ -456,27 +637,41 @@ function paintExpression(ui, paused, errored) {
         ? 'Stopped'
         : f.seen
           ? 'Mirroring'
-          : 'Watching';
+          : 'Watching');
 
-  els.expressionValue.textContent = !enabled ? '—' : f.seen ? f.label : '—';
+  // The emoji mirrors the smoothed face pose (eyes, brows, smile, mouth) and
+  // names the winning expression. It only writes attributes that changed.
+  const pose = engine.getRenderState().face;
+  let note = '';
+  if (!enabled && consentedFace && statusKind !== 'idle') note = 'Not included with this key';
+  else if (enabled && paused) note = 'Paused';
+  else if (enabled && errored) note = 'Stopped';
+  expressionEmoji.render({
+    enabled,
+    seen: enabled && f.seen && !paused && !errored,
+    type: f.type,
+    confidence: f.confidence,
+    face: pose,
+    note,
+  });
 
   if (!enabled) {
-    els.expressionConf.textContent = consentedFace
+    setText(els.expressionConf, consentedFace
       ? 'Visible expression isn’t on this key'
-      : 'Expression mirror is off';
+      : 'Expression mirror is off');
   } else if (paused) {
-    els.expressionConf.textContent = 'Paused';
+    setText(els.expressionConf, 'Paused');
   } else if (errored) {
-    els.expressionConf.textContent = 'Stopped';
+    setText(els.expressionConf, 'Stopped');
   } else if (!f.seen) {
-    els.expressionConf.textContent = 'Watching for a face';
+    setText(els.expressionConf, 'Watching for a face');
   } else {
-    els.expressionConf.textContent = `${Math.round(f.confidence)}% confident · visible shape only`;
+    setText(els.expressionConf, `${Math.round(f.confidence)}% confident · visible shape only`);
   }
 
   const width = enabled && f.seen ? `${Math.round(clamp(f.confidence, 0, 100))}%` : '0%';
-  els.expressionConfBar.style.width = width;
-  els.expressionConfBar.style.background = f.confidence >= 40 ? 'var(--sage)' : 'var(--clay)';
+  setStyle(els.expressionConfBar, 'width', width);
+  setStyle(els.expressionConfBar, 'background', f.confidence >= 40 ? 'var(--sage)' : 'var(--clay)');
 
   const scores = new Map();
   if (enabled && Array.isArray(f.scores)) {
@@ -485,15 +680,21 @@ function paintExpression(ui, paused, errored) {
   for (const bar of expressionBarEls) {
     const type = Number(bar.dataset.type);
     const score = scores.get(type) || 0;
-    bar.style.height = `${2 + clamp(score, 0, 100) / 100 * 20}px`;
+    setStyle(bar, 'height', `${2 + clamp(score, 0, 100) / 100 * 20}px`);
     bar.classList.toggle('active', enabled && type === f.type && f.confidence >= 18);
   }
 }
 
 function paintPresent(ui) {
-  els.presentPulse.textContent = ui.pulse.enabled && ui.pulse.rate != null ? String(Math.round(ui.pulse.rate)) : '—';
-  els.presentBreath.textContent = ui.breath.enabled && ui.breath.rate != null ? String(Math.round(ui.breath.rate)) : '—';
-  els.presentExpression.textContent = ui.face.enabled && ui.face.seen ? ui.face.label : '—';
+  setText(els.presentPulse, ui.pulse.enabled && ui.pulse.rate != null ? String(Math.round(ui.pulse.rate)) : '—');
+  setText(els.presentBreath, ui.breath.enabled && ui.breath.rate != null ? String(Math.round(ui.breath.rate)) : '—');
+  setText(els.presentExpression, ui.face.enabled && ui.face.seen ? expressionText(ui.face) : '—');
+}
+
+function expressionText(face) {
+  const entry = face.confidence >= 18 ? EXPRESSIONS[face.type] : null;
+  const shown = entry || EXPRESSIONS[6];
+  return `${shown.emoji} ${shown.name}`;
 }
 
 function paintUi(now = performance.now()) {
@@ -506,7 +707,7 @@ function paintUi(now = performance.now()) {
   paintExpression(ui, paused, errored);
   paintPresent(ui);
 
-  els.stageTime.textContent = formatTime(elapsedMs(now));
+  setText(els.stageTime, formatTime(elapsedMs(now)));
 }
 
 // --------------------------------------------------------------- broadcast
@@ -535,13 +736,6 @@ function broadcastState(now = performance.now()) {
   } catch {
     /* the frame may have closed between the check and the post */
   }
-  if (stageChannel) {
-    try {
-      stageChannel.postMessage(payload);
-    } catch {
-      /* channel closed during teardown */
-    }
-  }
 }
 
 function openFrame() {
@@ -565,15 +759,6 @@ function openFrame() {
 
   els.app.dataset.companion = 'on';
 
-  try {
-    frameWindow.addEventListener('beforeunload', () => {
-      frameWindow = null;
-      delete els.app.dataset.companion;
-    });
-  } catch {
-    /* cross-window listener is best-effort */
-  }
-
   broadcastState();
   setTimeout(() => broadcastState(), 300);
   setTimeout(() => broadcastState(), 900);
@@ -596,6 +781,7 @@ function companionFits() {
 }
 
 function applyWindowMode(payload) {
+  if (payload && typeof payload.maximized === 'boolean') updateMaxButton(payload.maximized, Boolean(payload.fullscreen));
   const next = Boolean(payload && payload.fullscreen);
   if (next === isFullscreen) return;
   isFullscreen = next;
@@ -617,35 +803,58 @@ function syncFullscreenFromViewport() {
 if (window.kin && typeof window.kin.onWindowMode === 'function') {
   window.kin.onWindowMode(applyWindowMode);
 }
-window.addEventListener('resize', () => requestAnimationFrame(syncFullscreenFromViewport));
-requestAnimationFrame(syncFullscreenFromViewport);
+if (!window.kin || typeof window.kin.onWindowMode !== 'function') {
+  window.addEventListener('resize', () => requestAnimationFrame(syncFullscreenFromViewport));
+  requestAnimationFrame(syncFullscreenFromViewport);
+}
 
 // ------------------------------------------------------------- SDK lifecycle
 
 function requestedMetrics(entitlements) {
   const codes = [];
   if (entitlements.breath) codes.push(0, 2); // chest trace, breathing rate
-  if (entitlements.pulse) codes.push(15, 16); // pulse rate, arterial pressure trace
+  // Pulse rate only. Metric 16 (ARTERIAL_PRESSURE_TRACE) pulls the separate
+  // phasic-bp-inference model in the native SDK. That model load runs beside
+  // the live camera and was the source of the pulse-start latency. The
+  // portrait already has a rate-only mode: a fresh measured rate paces the
+  // glow, with no invented waveform.
+  if (entitlements.pulse) codes.push(15);
   if (entitlements.face) codes.push(12, 13, 14); // blinking, talking, expressions
   return codes;
 }
 
-const PREVIEW_WIDTH = 640;
-const PREVIEW_HEIGHT = 480;
 let previewGl = null;
 let previewGlTexture = null;
+let previewGlSwap = null;
 let previewGlWidth = 0;
 let previewGlHeight = 0;
+let previewGlFormat = 0;
 let previewContext = null;
 let previewImageData = null;
 let pendingPreview = null;
 let previewRaf = 0;
 
-// 2D putImageData is a CPU raster upload. On the test laptop it competes
-// directly with the SmartSpectra measurement thread, which is what produced the
-// late, choppy self-view in earlier preview paths. Use WebGL for the normal
-// RGBA frame: the texture upload is done by the GPU process and the studio
-// thread only issues a draw. A 2D path remains as a fallback without WebGL.
+// The main process keeps at most one preview frame in flight and waits for
+// this ack before sending the next one. That bounds the self-view latency to
+// about one frame: if a paint is slow, stale frames are dropped in the main
+// process instead of queueing up in IPC.
+function ackPreview(event) {
+  if (!event || !window.kin || typeof window.kin.sendSdkCommand !== 'function') return;
+  window.kin.sendSdkCommand({ type: 'preview-ack', session: event.session });
+}
+
+// The preview is drawn with WebGL so the studio thread only issues a texture
+// upload and a draw. Preferred path (WebGL2): the packed RGB/RGBA bytes are
+// uploaded as a single-channel R8 texture (width * channels texels wide) and
+// the shader reassembles each pixel with texelFetch. R8 is a native D3D11
+// format, so ANGLE copies the bytes as-is. A plain RGB texture is NOT native
+// on D3D11: ANGLE expands it to RGBA on the CPU inside the GPU process, which
+// on the two-core test laptop competes with measurement. WebGL1 RGB/RGBA and
+// a 2D canvas remain as fallbacks.
+let previewGlLost = false;
+let previewGlMode = 0; // 2 = WebGL2 R8 path, 1 = WebGL1 RGB/RGBA path
+let previewGlUniforms = null;
+
 function setupPreviewGl() {
   const canvas = els.stagePreview;
   if (!canvas) return false;
@@ -659,15 +868,37 @@ function setupPreviewGl() {
     powerPreference: 'high-performance',
   };
   let gl = null;
+  let mode = 0;
   try {
-    gl = canvas.getContext('webgl', attributes);
+    gl = canvas.getContext('webgl2', attributes);
+    if (gl) mode = 2;
   } catch {
     gl = null;
   }
+  if (!gl) {
+    try {
+      gl = canvas.getContext('webgl', attributes);
+      if (gl) mode = 1;
+    } catch {
+      gl = null;
+    }
+  }
   if (!gl) return false;
 
-  const vertexSource = 'attribute vec2 a_pos; varying vec2 v_uv; void main() { v_uv = vec2((a_pos.x + 1.0) * 0.5, 1.0 - (a_pos.y + 1.0) * 0.5); gl_Position = vec4(a_pos, 0.0, 1.0); }';
-  const fragmentSource = 'precision mediump float; varying vec2 v_uv; uniform sampler2D u_frame; void main() { gl_FragColor = texture2D(u_frame, v_uv); }';
+  const sources = mode === 2
+    ? {
+      vertex: '#version 300 es\nin vec2 a_pos; out vec2 v_uv; void main() { v_uv = vec2((a_pos.x + 1.0) * 0.5, 1.0 - (a_pos.y + 1.0) * 0.5); gl_Position = vec4(a_pos, 0.0, 1.0); }',
+      fragment: '#version 300 es\nprecision highp float; precision highp int; in vec2 v_uv; uniform highp sampler2D u_frame; uniform ivec2 u_size; uniform int u_channels; uniform float u_swap; out vec4 o_color;\n'
+        + 'void main() { ivec2 p = clamp(ivec2(v_uv * vec2(u_size)), ivec2(0), u_size - 1); int x = p.x * u_channels;\n'
+        + 'vec3 c = vec3(texelFetch(u_frame, ivec2(x, p.y), 0).r, texelFetch(u_frame, ivec2(x + 1, p.y), 0).r, texelFetch(u_frame, ivec2(x + 2, p.y), 0).r);\n'
+        + 'o_color = vec4(mix(c, c.bgr, u_swap), 1.0); }',
+    }
+    : {
+      vertex: 'attribute vec2 a_pos; varying vec2 v_uv; void main() { v_uv = vec2((a_pos.x + 1.0) * 0.5, 1.0 - (a_pos.y + 1.0) * 0.5); gl_Position = vec4(a_pos, 0.0, 1.0); }',
+      // u_swap handles BGR/BGRA sources on the GPU; alpha is forced opaque.
+      fragment: 'precision mediump float; varying vec2 v_uv; uniform sampler2D u_frame; uniform float u_swap; void main() { vec4 c = texture2D(u_frame, v_uv); gl_FragColor = vec4(mix(c.rgb, c.bgr, u_swap), 1.0); }',
+    };
+
   function compile(type, source) {
     const shader = gl.createShader(type);
     gl.shaderSource(shader, source);
@@ -680,8 +911,8 @@ function setupPreviewGl() {
 
   try {
     const program = gl.createProgram();
-    gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource));
-    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
+    gl.attachShader(program, compile(gl.VERTEX_SHADER, sources.vertex));
+    gl.attachShader(program, compile(gl.FRAGMENT_SHADER, sources.fragment));
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
       throw new Error(gl.getProgramInfoLog(program) || 'shader link failed');
@@ -698,14 +929,38 @@ function setupPreviewGl() {
     previewGlTexture = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, previewGlTexture);
+    const filter = mode === 2 ? gl.NEAREST : gl.LINEAR;
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     gl.uniform1i(gl.getUniformLocation(program, 'u_frame'), 0);
+    previewGlUniforms = {
+      swap: gl.getUniformLocation(program, 'u_swap'),
+      size: mode === 2 ? gl.getUniformLocation(program, 'u_size') : null,
+      channels: mode === 2 ? gl.getUniformLocation(program, 'u_channels') : null,
+    };
+    gl.uniform1f(previewGlUniforms.swap, 0);
     gl.viewport(0, 0, canvas.width, canvas.height);
+    if (!canvas.dataset.glListeners) {
+      canvas.dataset.glListeners = '1';
+      canvas.addEventListener('webglcontextlost', (event) => {
+        event.preventDefault();
+        previewGlLost = true;
+        previewGl = null;
+        previewGlWidth = 0;
+        previewGlHeight = 0;
+        previewGlFormat = 0;
+      });
+      canvas.addEventListener('webglcontextrestored', () => {
+        previewGlLost = false;
+        setupPreviewGl();
+      });
+    }
+    previewGlMode = mode;
     previewGl = gl;
+    if (typeof console !== 'undefined') console.log(`[kin-ui] preview renderer: WebGL${mode}${mode === 2 ? ' (R8 upload)' : ''}`);
     return true;
   } catch (error) {
     console.error('Kin: WebGL preview unavailable', error);
@@ -714,9 +969,9 @@ function setupPreviewGl() {
   }
 }
 
-function paintPreviewGl(bytes, width, height) {
+function paintPreviewGl(bytes, width, height, channels, swap) {
   const gl = previewGl;
-  if (!gl) return false;
+  if (!gl || gl.isContextLost()) return false;
   const canvas = els.stagePreview;
   if (!canvas) return false;
   if (canvas.width !== width || canvas.height !== height) {
@@ -726,18 +981,38 @@ function paintPreviewGl(bytes, width, height) {
   }
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, previewGlTexture);
-  if (previewGlWidth !== width || previewGlHeight !== height) {
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
-    previewGlWidth = width;
-    previewGlHeight = height;
+  gl.uniform1f(previewGlUniforms.swap, swap ? 1 : 0);
+
+  if (previewGlMode === 2) {
+    const texWidth = width * channels;
+    const format = channels; // key: texture layout changes with channel count
+    if (previewGlWidth !== texWidth || previewGlHeight !== height || previewGlFormat !== format) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, texWidth, height, 0, gl.RED, gl.UNSIGNED_BYTE, bytes);
+      gl.uniform2i(previewGlUniforms.size, width, height);
+      gl.uniform1i(previewGlUniforms.channels, channels);
+      previewGlWidth = texWidth;
+      previewGlHeight = height;
+      previewGlFormat = format;
+    } else {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, texWidth, height, gl.RED, gl.UNSIGNED_BYTE, bytes);
+    }
   } else {
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
+    const format = channels === 3 ? gl.RGB : gl.RGBA;
+    if (previewGlWidth !== width || previewGlHeight !== height || previewGlFormat !== format) {
+      gl.texImage2D(gl.TEXTURE_2D, 0, format, width, height, 0, format, gl.UNSIGNED_BYTE, bytes);
+      previewGlWidth = width;
+      previewGlHeight = height;
+      previewGlFormat = format;
+    } else {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, format, gl.UNSIGNED_BYTE, bytes);
+    }
   }
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   return true;
 }
 
 function clearPreview() {
+  if (pendingPreview) ackPreview(pendingPreview);
   pendingPreview = null;
   if (previewRaf) {
     cancelAnimationFrame(previewRaf);
@@ -748,6 +1023,7 @@ function clearPreview() {
     previewGl.clear(previewGl.COLOR_BUFFER_BIT);
     previewGlWidth = 0;
     previewGlHeight = 0;
+    previewGlFormat = 0;
     return;
   }
   const canvas = els.stagePreview;
@@ -762,6 +1038,7 @@ function clearPreview() {
 // can deliver faster than the compositor; keeping only the newest packet means
 // a slow paint drops stale frames instead of building a visible queue.
 function queuePreview(event) {
+  if (pendingPreview) ackPreview(pendingPreview);
   pendingPreview = event;
   if (!previewRaf) previewRaf = requestAnimationFrame(paintQueuedPreview);
 }
@@ -770,63 +1047,51 @@ function paintQueuedPreview() {
   previewRaf = 0;
   const event = pendingPreview;
   pendingPreview = null;
-  if (event && els.app.dataset.mirror === 'on') paintPreview(event);
+  if (!event) return;
+  try {
+    if (els.app.dataset.mirror === 'on') {
+      const start = performance.now();
+      paintPreview(event);
+      const ms = performance.now() - start;
+      if (ms > perfState.previewPaintMax) perfState.previewPaintMax = ms;
+    }
+  } finally {
+    ackPreview(event);
+  }
 }
 
 function paintPreview(event) {
+  perfState.previewPaints += 1;
   const canvas = els.stagePreview;
   if (!canvas || !event.width || !event.height) return;
   const bytes = event.buffer instanceof Uint8Array ? event.buffer : new Uint8Array(event.buffer);
-  const { width, height, stride, pixelFormat } = event;
-  if (!bytes || !bytes.length) return;
-
-  // The main process sends ready-to-display RGBA at the native 4:3 size.
-  if (pixelFormat === 2 && stride === width * 4 && bytes.length >= width * height * 4) {
-    if (!previewGl) setupPreviewGl();
-    if (previewGl && paintPreviewGl(bytes, width, height)) return;
-  }
-
-  if (!previewContext) {
-    canvas.width = PREVIEW_WIDTH;
-    canvas.height = PREVIEW_HEIGHT;
-    previewContext = canvas.getContext('2d', { alpha: false, desynchronized: true });
-  }
-  if (!previewContext) return;
-  if (!previewImageData) previewImageData = previewContext.createImageData(PREVIEW_WIDTH, PREVIEW_HEIGHT);
-  const rgba = previewImageData.data;
-  const channels = pixelFormat === 2 || pixelFormat === 3 ? 4 : (pixelFormat === 0 || pixelFormat === 1 ? 3 : 0);
-  if (!channels) return;
-
-  const targetAspect = PREVIEW_WIDTH / PREVIEW_HEIGHT;
-  let cropWidth = width;
-  let cropHeight = height;
-  let cropX = 0;
-  let cropY = 0;
-  if (width / height > targetAspect) {
-    cropWidth = Math.max(1, Math.round(height * targetAspect));
-    cropX = Math.floor((width - cropWidth) / 2);
-  } else if (width / height < targetAspect) {
-    cropHeight = Math.max(1, Math.round(width / targetAspect));
-    cropY = Math.floor((height - cropHeight) / 2);
-  }
-
-  const sourceX = new Uint32Array(PREVIEW_WIDTH);
-  for (let x = 0; x < PREVIEW_WIDTH; x += 1) {
-    sourceX[x] = cropX + Math.min(cropWidth - 1, Math.floor((x * cropWidth) / PREVIEW_WIDTH));
-  }
+  const { width, height, pixelFormat } = event;
+  // Packets are tightly packed RGB/BGR (3) or RGBA/BGRA (4) at camera size.
+  // CSS object-fit: cover crops the canvas to the 4:3 frame.
+  const channels = event.channels || (pixelFormat === 2 || pixelFormat === 3 ? 4 : 3);
   const swap = pixelFormat === 1 || pixelFormat === 3;
-  for (let y = 0; y < PREVIEW_HEIGHT; y += 1) {
-    const sourceY = cropY + Math.min(cropHeight - 1, Math.floor((y * cropHeight) / PREVIEW_HEIGHT));
-    const srcRow = sourceY * stride;
-    const dstRow = y * PREVIEW_WIDTH * 4;
-    for (let x = 0; x < PREVIEW_WIDTH; x += 1) {
-      const src = srcRow + sourceX[x] * channels;
-      const dst = dstRow + x * 4;
-      rgba[dst] = bytes[src + (swap ? 2 : 0)];
-      rgba[dst + 1] = bytes[src + 1];
-      rgba[dst + 2] = bytes[src + (swap ? 0 : 2)];
-      rgba[dst + 3] = 255;
-    }
+  if (!bytes || bytes.length < width * height * channels) return;
+
+  if (!previewGl && !previewGlLost) setupPreviewGl();
+  if (previewGl && paintPreviewGl(bytes, width, height, channels, swap)) return;
+
+  // Fallback without WebGL: CPU conversion into a 2D canvas.
+  if (!previewContext) previewContext = canvas.getContext('2d', { alpha: false, desynchronized: true });
+  if (!previewContext) return;
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+    previewImageData = null;
+  }
+  if (!previewImageData) previewImageData = previewContext.createImageData(width, height);
+  const rgba = previewImageData.data;
+  const r = swap ? 2 : 0;
+  const b = swap ? 0 : 2;
+  for (let src = 0, dst = 0; dst < rgba.length; src += channels, dst += 4) {
+    rgba[dst] = bytes[src + r];
+    rgba[dst + 1] = bytes[src + 1];
+    rgba[dst + 2] = bytes[src + b];
+    rgba[dst + 3] = 255;
   }
   previewContext.putImageData(previewImageData, 0, 0);
 }
@@ -835,22 +1100,14 @@ function enterMirrorMode() {
   // The studio portrait uses compositor-driven CSS for pulse and breath, so
   // it can stay beside the self-view without the extra renderer window. The
   // full companion remains available on demand from the header or F.
+  // Self-view off (camera settings): keep measuring with the portrait only.
+  if (cameraPrefs.selfView === 'off') return;
   els.app.dataset.mirror = 'on';
-  // Keep the studio focused; the portrait window is a companion, not a
-  // second thing to manage. It opens to the right of the studio when there is room.
-  setTimeout(() => {
-    try {
-      window.focus();
-    } catch {
-      /* the window manager may refuse focus */
-    }
-  }, 220);
 }
 
 function exitMirrorMode() {
   delete els.app.dataset.mirror;
   clearPreview();
-  closeFrame();
 }
 
 function markRunningFromFrame() {
@@ -896,6 +1153,10 @@ function handleSdkEvent(event) {
       if (statusKind !== 'paused' && statusKind !== 'error') setPauseUi('pausing');
       return;
     }
+    if (status === ProcessingStatus.kIdle && sdkStatus === 'running' && !failureHandling) {
+      handleFailure(8, 'The measurement engine stopped.', true);
+      return;
+    }
     if (status === ProcessingStatus.kError) {
       const token = sessionToken;
       setTimeout(() => {
@@ -908,18 +1169,28 @@ function handleSdkEvent(event) {
   }
 
   if (event.type === 'validation') {
+    if (FACE_EVIDENCE_CODES.has(event.code)) noteFaceEvidence();
     applyValidation(event.code, event.hint);
     return;
   }
 
   if (event.type === 'preview') {
+    const now = performance.now();
+    perfState.previewEvents += 1;
+    if (perfState.lastPreviewAt) {
+      const gap = now - perfState.lastPreviewAt;
+      if (gap > perfState.previewGapMax) perfState.previewGapMax = gap;
+    }
+    perfState.lastPreviewAt = now;
     markRunningFromFrame();
     if (els.app.dataset.mirror === 'on') queuePreview(event);
+    else ackPreview(event);
     return;
   }
 
   if (event.type === 'metrics') {
     markRunningFromFrame();
+    const decodeStart = performance.now();
     try {
       const bytes = event.buffer instanceof Uint8Array ? event.buffer : new Uint8Array(event.buffer);
       const metrics = decodeMetrics(bytes);
@@ -927,6 +1198,20 @@ function handleSdkEvent(event) {
     } catch (error) {
       console.error('Kin: could not decode a metrics packet.', error);
     }
+    const decodeMs = performance.now() - decodeStart;
+    perfState.metricsEvents += 1;
+    perfState.metricsDecodeTotal += decodeMs;
+    if (decodeMs > perfState.metricsDecodeMax) perfState.metricsDecodeMax = decodeMs;
+    return;
+  }
+
+  if (event.type === 'accepting') {
+    directCamera.setAccepting(event.session);
+    return;
+  }
+
+  if (event.type === 'health') {
+    applyHealth(event);
     return;
   }
 
@@ -941,11 +1226,13 @@ async function teardownSdk(options = {}) {
   if (window.kin && typeof window.kin.sendSdkCommand === 'function') {
     window.kin.sendSdkCommand({ type: 'stop', session: sessionToken });
   }
+  // Release the camera (the OS camera light goes off on pause and end).
+  await directCamera.stop();
   clearPreview();
   if (!options.keepFrame) exitMirrorMode();
 }
 
-async function startSession() {
+async function startSession(options = {}) {
   if (sdkStatus === 'starting' || sdkStatus === 'running' || ending) return;
   if (!apiKey) {
     await handleFailure(2, 'A Presage key is required.', false);
@@ -958,20 +1245,52 @@ async function startSession() {
 
   sdkStatus = 'starting';
   hideNotice();
-  engine.resetSignals();
+  // An automatic reconnect keeps the last readings on screen; they are
+  // replaced as soon as the engine measures again.
+  if (!options.keepReadings) engine.resetSignals();
   engine.setEntitlements(currentEntitlements);
   setStatus('waking');
   setPauseUi('starting');
   els.endBtn.disabled = false;
-  setValidation('Camera', 'Opening the camera…', 'neutral');
-  enterMirrorMode();
+  setValidation('Camera', options.keepReadings ? 'Reconnecting the measurement engine…' : 'Opening the camera…', 'neutral');
 
   const token = ++sessionToken;
+  cameraSource = 'sdk';
+  // Reliable mode (default): the SDK captures the camera itself. Smooth mode:
+  // Kin owns the camera and pushes frames (see camera-settings.cjs).
+  if (cameraPrefs.cameraMode === 'smooth' && directCameraSupported()) {
+    const [width, height] = String(cameraPrefs.resolution || '640x480').split('x').map(Number);
+    directCamera.setPixelMode(rgbaRemembered ? 'rgba' : 'nv12');
+    layoutWatch = { token, since: null, evidence: false };
+    try {
+      await directCamera.start({
+        width,
+        height,
+        fps: cameraPrefs.captureFps,
+        sessionToken: token,
+        showSelfView: cameraPrefs.selfView !== 'off',
+      });
+      cameraSource = 'direct';
+      console.log(`[kin-ui] camera exposure ${JSON.stringify(directCamera.exposure)}`);
+    } catch (error) {
+      console.warn('[kin] direct camera unavailable, using the SDK camera', error && (error.name || error.message));
+      await directCamera.stop();
+    }
+  }
+  // The session may have been paused or ended while the camera opened.
+  if (token !== sessionToken || ending) {
+    await directCamera.stop();
+    return;
+  }
+  setData(els.stageMirror, 'source', cameraSource);
+  enterMirrorMode();
+
   window.kin.sendSdkCommand({
     type: 'start',
     session: token,
     apiKey,
     requestedMetrics: requestedMetrics(currentEntitlements),
+    source: cameraSource,
   });
 }
 
@@ -1026,9 +1345,43 @@ async function fallbackMetricSet() {
   setStatus('waking');
   paintUi();
   await delay(450);
-  if (ending) return;
+  if (ending || !apiKey) return;
   failureHandling = false;
   await startSession();
+}
+
+// Keep the session on. On a light laptop the SDK can stop itself when the
+// machine briefly cannot keep up (14: frame rate too low), when a stall drops
+// its connection (5/6: network/server), or when processing hiccups (0, 8, 9,
+// 11). Those are transient: restart the engine quietly, keep the last
+// readings on screen, and only show "Try again" if it keeps failing (more
+// than 4 restarts within 3 minutes). Key, credit, camera-permission, and
+// metric-entitlement errors are never retried.
+const AUTO_RECONNECT_CODES = new Set([0, 5, 6, 8, 9, 11, 14]);
+const autoReconnectTimes = [];
+let autoReconnecting = false;
+
+async function autoReconnect(code, retryable) {
+  if (!AUTO_RECONNECT_CODES.has(code) || retryable === false || !apiKey || ending) return false;
+  const now = Date.now();
+  while (autoReconnectTimes.length && now - autoReconnectTimes[0] > 180000) autoReconnectTimes.shift();
+  if (autoReconnectTimes.length >= 4) return false;
+  autoReconnectTimes.push(now);
+  autoReconnecting = true;
+  try {
+    console.warn(`[kin] measurement engine stopped (code ${code}); reconnecting automatically`);
+    showToast('The measurement engine paused. Reconnecting automatically…', 'ok', 5000);
+    const keepClock = sessionActiveStart != null || sessionElapsedMs > 0;
+    await teardownSdk({ keepFrame: true });
+    sdkStatus = 'idle';
+    await delay(1200);
+    if (ending || !apiKey) return true;
+    await startSession({ keepReadings: true });
+    if (!keepClock) stopClock();
+    return true;
+  } finally {
+    autoReconnecting = false;
+  }
 }
 
 async function handleFailure(code, message, retryable) {
@@ -1041,6 +1394,8 @@ async function handleFailure(code, message, retryable) {
       await fallbackMetricSet();
       return;
     }
+
+    if (await autoReconnect(code, retryable)) return;
 
     const copy = ERROR_COPY[code] || message || 'Kin stopped unexpectedly.';
     await fatalStop(copy);
@@ -1114,12 +1469,9 @@ async function endSession() {
   await teardownSdk();
   sdkStatus = 'idle';
   apiKey = null;
-  operatorKey = null;
-  try {
-    delete window.__kinOperatorKey;
-  } catch {
-    /* the property may be non-configurable */
-  }
+  // The operator's key (from .env / kin.key) stays for the next session, so
+  // users go straight from consent to the studio. A key the user pasted is
+  // still forgotten here.
   els.apiKey.value = '';
   els.keyError.hidden = true;
   sessionToken += 1;
@@ -1139,7 +1491,9 @@ async function endSession() {
   appScreen = 'consent';
   els.app.dataset.screen = 'consent';
   els.consentContinue.focus();
-  showToast('Session ended. Camera, readings, and the in-memory key are cleared.', 'ok', 7000);
+  showToast(operatorKey
+    ? 'Session ended. The camera is off and readings are cleared.'
+    : 'Session ended. Camera, readings, and the in-memory key are cleared.', 'ok', 7000);
   ending = false;
 }
 
@@ -1235,7 +1589,8 @@ function closeConfirm() {
 }
 
 function overlayOpen() {
-  return !els.privacy.classList.contains('hidden') || !els.confirm.classList.contains('hidden');
+  return !els.privacy.classList.contains('hidden') || !els.confirm.classList.contains('hidden')
+    || !els.settings.classList.contains('hidden');
 }
 
 function enterPresent() {
@@ -1318,6 +1673,8 @@ function retrySession() {
     return;
   }
   sdkStatus = 'idle';
+  // A manual retry starts with a fresh auto-reconnect budget.
+  autoReconnectTimes.length = 0;
   setStatus('waking');
   engine.resetSignals();
   engine.setEntitlements(currentEntitlements);
@@ -1350,6 +1707,10 @@ els.frameBtn.addEventListener('click', openFrame);
 
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
+    if (!els.settings.classList.contains('hidden')) {
+      closeSettings();
+      return;
+    }
     if (!els.privacy.classList.contains('hidden')) {
       closePrivacy();
       return;
@@ -1375,6 +1736,9 @@ window.addEventListener('keydown', (event) => {
   } else if (key === 'f') {
     event.preventDefault();
     openFrame();
+  } else if (key === 's') {
+    event.preventDefault();
+    openSettings();
   }
 });
 
@@ -1400,6 +1764,7 @@ window.addEventListener('beforeunload', () => {
     window.kin.sendSdkCommand({ type: 'stop', session: sessionToken + 1 });
   }
   clearPreview();
+  closeFrame();
   if (stageChannel) {
     try {
       stageChannel.close();
@@ -1410,20 +1775,252 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
+// ------------------------------------------------------- window controls
+
+function updateMaxButton(maximized, fullscreen) {
+  const restore = maximized || fullscreen;
+  els.winMax.title = fullscreen ? 'Exit fullscreen' : restore ? 'Restore down' : 'Maximize';
+  els.winMax.setAttribute('aria-label', els.winMax.title);
+  els.winMaxIcon.innerHTML = restore
+    ? '<rect x="2.5" y="4" width="5.5" height="5.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 4V2.5h5v5H8" fill="none" stroke="currentColor" stroke-width="1.2"/>'
+    : '<rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.2"/>';
+}
+
+function windowControl(action) {
+  if (window.kin && typeof window.kin.windowControl === 'function') window.kin.windowControl(action);
+}
+
+els.winMin.addEventListener('click', () => windowControl('minimize'));
+els.winMax.addEventListener('click', () => windowControl('maximize'));
+els.winClose.addEventListener('click', () => windowControl('close'));
+
+// -------------------------------------------------------- camera settings
+
+let cameraPrefs = { captureFps: 30, resolution: '640x480', selfView: 'on', cameraMode: 'reliable' };
+let settingsState = null;
+let lastHealth = null;
+let strugglingStreak = 0;
+let struggleHintShown = false;
+
+const RESOLUTION_LABELS = { '640x480': 'Standard 640×480', '1280x720': 'HD 1280×720' };
+
+function describeSettings(s) {
+  const view = s.selfView === 'off' ? 'self-view off' : 'self-view on';
+  const mode = s.cameraMode === 'smooth' ? 'Smooth preview' : 'Reliable';
+  return `${mode} · ${s.captureFps} fps · ${RESOLUTION_LABELS[s.resolution] || s.resolution} · ${view}`;
+}
+
+function sameSettings(a, b) {
+  return a && b && a.captureFps === b.captureFps && a.resolution === b.resolution && a.selfView === b.selfView
+    && a.cameraMode === b.cameraMode;
+}
+
+function fillList(list, items) {
+  list.replaceChildren(...items.map((text) => {
+    const li = document.createElement('li');
+    li.textContent = text;
+    return li;
+  }));
+}
+
+function selectSettings(s) {
+  for (const name of ['captureFps', 'resolution', 'selfView', 'cameraMode']) {
+    for (const input of els.settings.querySelectorAll(`input[name="${name}"]`)) {
+      input.checked = String(s[name]) === input.value;
+    }
+  }
+}
+
+function readSelectedSettings() {
+  const value = (name) => {
+    const input = els.settings.querySelector(`input[name="${name}"]:checked`);
+    return input ? input.value : null;
+  };
+  return {
+    captureFps: Number(value('captureFps') || cameraPrefs.captureFps),
+    resolution: value('resolution') || cameraPrefs.resolution,
+    selfView: value('selfView') || cameraPrefs.selfView,
+    cameraMode: value('cameraMode') || cameraPrefs.cameraMode,
+  };
+}
+
+function renderSettingsState(state) {
+  settingsState = state;
+  const rec = state.recommendation;
+  const current = sameSettings(rec.settings, state.settings);
+  setText(els.recommendSummary, `${describeSettings(rec.settings)}${current ? ' — in use' : ''}`);
+  els.recommendApply.disabled = current;
+  fillList(els.recommendReasons, rec.reasons);
+  fillList(els.settingsTips, rec.tips);
+}
+
+async function loadCameraSettings() {
+  if (!window.kin || typeof window.kin.getCameraSettings !== 'function') return null;
+  try {
+    const state = await window.kin.getCameraSettings();
+    if (state && state.settings) {
+      cameraPrefs = state.settings;
+      renderSettingsState(state);
+    }
+    return state;
+  } catch (error) {
+    console.error('Kin: camera settings unavailable', error);
+    return null;
+  }
+}
+
+async function openSettings() {
+  els.settings.classList.remove('hidden');
+  setText(els.settingsNote, 'Saved on this device. Only camera preferences are stored — never frames or readings.');
+  selectSettings(cameraPrefs);
+  renderHealth();
+  const state = await loadCameraSettings();
+  if (state) selectSettings(state.settings);
+  setTimeout(() => els.settingsApply.focus(), 30);
+}
+
+function closeSettings() {
+  els.settings.classList.add('hidden');
+}
+
+function sessionActive() {
+  return sdkStatus === 'running' || sdkStatus === 'starting';
+}
+
+async function restartForSettings() {
+  showToast('Reopening the camera with the new settings. Readings restart in a moment.', 'ok', 6000);
+  stopClock();
+  await teardownSdk({ keepFrame: true });
+  sdkStatus = 'idle';
+  strugglingStreak = 0;
+  await delay(400);
+  if (ending || !apiKey) return;
+  await startSession();
+}
+
+async function applyCameraSettings(next) {
+  if (!window.kin || typeof window.kin.setCameraSettings !== 'function') return;
+  els.settingsApply.disabled = true;
+  try {
+    const state = await window.kin.setCameraSettings(next);
+    if (!state) return;
+    cameraPrefs = state.settings;
+    renderSettingsState(state);
+    selectSettings(cameraPrefs);
+
+    // Self-view on/off applies live and changes the studio layout.
+    const showSelfView = cameraPrefs.selfView !== 'off';
+    directCamera.setSelfView(showSelfView && sessionActive());
+    if (!showSelfView && els.app.dataset.mirror === 'on') {
+      delete els.app.dataset.mirror;
+      clearPreview();
+    } else if (showSelfView && sessionActive() && els.app.dataset.mirror !== 'on') {
+      enterMirrorMode();
+    }
+
+    if (state.restartNeeded && sessionActive()) {
+      closeSettings();
+      await restartForSettings();
+    } else {
+      setText(els.settingsNote, state.restartNeeded
+        ? 'Saved. The new camera settings apply when the camera next opens.'
+        : 'Saved and applied.');
+      if (!state.restartNeeded) setTimeout(closeSettings, 700);
+    }
+  } finally {
+    els.settingsApply.disabled = false;
+  }
+}
+
+function healthTone(h) {
+  if (!h) return 'idle';
+  // The camera and models take several seconds to settle; judging that
+  // start-up window as "falling behind" would be a false alarm.
+  if ((h.elapsedSeconds || 0) < 12) return 'warming';
+  const req = h.requestedFps || 30;
+  const drops = h.dropShare || 0;
+  if (h.lagAvg > 250 || h.cameraFps < req * 0.7 || drops > 0.25) return 'bad';
+  if (h.lagAvg > 120 || h.cameraFps < req * 0.88 || drops > 0.1) return 'fair';
+  return 'good';
+}
+
+function renderHealth() {
+  const h = lastHealth;
+  const live = h && sessionActive();
+  const tone = live ? healthTone(h) : 'idle';
+  setData(els.settingsHealth, 'tone', tone);
+  setText(els.healthLabel, !live
+    ? 'Live performance appears while Kin listens'
+    : tone === 'warming'
+      ? 'Camera starting — measuring performance…'
+      : tone === 'good'
+      ? 'Measurement is keeping up on this device'
+      : tone === 'fair'
+        ? 'Measurement is keeping up, with small delays'
+        : h.source === 'direct'
+          ? 'Measurement is falling behind — readings may be slow (your self-view stays live)'
+          : 'Falling behind — try the recommended settings');
+  setText(els.healthCamera, live ? `${h.cameraFps.toFixed(0)} / ${h.requestedFps} fps` : '—');
+  let selfView = '—';
+  if (live) {
+    if (cameraPrefs.selfView === 'off') selfView = 'off';
+    else if (h.source === 'direct') {
+      const rate = directCamera.cameraFrameRate();
+      selfView = rate ? `live · ${Math.round(rate)} fps` : 'live';
+    } else selfView = `${h.previewFps.toFixed(0)} fps`;
+  }
+  setText(els.healthPreview, selfView);
+  setText(els.healthLag, live ? `${Math.round(h.lagAvg)} ms` : '—');
+}
+
+function applyHealth(event) {
+  lastHealth = event;
+  // In direct mode no preview packets arrive; frames reaching the SDK are
+  // the proof that capture is live (same role as markRunningFromFrame).
+  if (event.cameraFps > 0) markRunningFromFrame();
+  renderHealth();
+  // Three bad readings in a row (~6 s): suggest settings once per app run.
+  strugglingStreak = healthTone(event) === 'bad' ? strugglingStreak + 1 : 0;
+  if (strugglingStreak >= 3 && !struggleHintShown) {
+    struggleHintShown = true;
+    showToast(event.source === 'direct'
+      ? 'Readings are falling behind on this device. Open camera settings (S) for a lighter recommendation.'
+      : 'The camera is falling behind on this device. Open camera settings (S) for a lighter recommendation.', 'warn', 9000);
+  }
+}
+
+els.settingsBtn.addEventListener('click', openSettings);
+els.settingsClose.addEventListener('click', closeSettings);
+els.settingsCancel.addEventListener('click', closeSettings);
+els.settings.addEventListener('click', (event) => {
+  if (event.target === els.settings) closeSettings();
+});
+els.settingsApply.addEventListener('click', () => applyCameraSettings(readSelectedSettings()));
+els.recommendApply.addEventListener('click', () => {
+  if (!settingsState) return;
+  selectSettings(settingsState.recommendation.settings);
+  applyCameraSettings(settingsState.recommendation.settings);
+});
+
+loadCameraSettings();
+
 // ------------------------------------------------------------------- loop
 
 function loop(now) {
+  checkFrameLayout(now);
   // The native SDK owns the camera and the frame budget. The studio only
   // paints the preview frames it receives and the light signal UI, while the
   // portrait window renders the same state in its own renderer process.
-  if (now - lastPortraitPaint >= 250) {
-    const dt = Math.min(0.3, Math.max(0.001, (now - lastFrameAt) / 1000));
-    lastFrameAt = now;
-    engine.tick(dt, now);
-    // The studio portrait is the living portrait when the optional companion
-    // window is closed. Keep it animating in place; the guest frame window
-    // renders its own copy when it is open.
-    if (!frameWindow || frameWindow.closed) portrait.render(engine.getRenderState());
+  // Advance the signal engine on every run (real elapsed time), and repaint
+  // the portrait at ~5 Hz. The studio portrait is hidden only when the
+  // companion window shows it AND the self-view takes its place; then it gets
+  // an empty state so its pulse timer stops instead of running unseen.
+  const dt = Math.min(0.3, Math.max(0.001, (now - lastFrameAt) / 1000));
+  lastFrameAt = now;
+  engine.tick(dt, now);
+  if (now - lastPortraitPaint >= 190) {
+    const hidden = frameWindow && !frameWindow.closed && els.app.dataset.mirror === 'on';
+    portrait.render(hidden ? {} : engine.getRenderState());
     lastPortraitPaint = now;
   }
 
@@ -1436,10 +2033,21 @@ function loop(now) {
     broadcastState(now);
     lastBroadcast = now;
   } else if (frameWindow && frameWindow.closed) {
+    // The window was closed by the user: bring the studio portrait back.
     frameWindow = null;
+    delete els.app.dataset.companion;
   }
+}
 
-  requestAnimationFrame(loop);
+// A 100 ms timer, not requestAnimationFrame: every task above is gated at
+// 100-250 ms anyway, and a perpetual rAF loop keeps Chromium's whole frame
+// pipeline (renderer, browser, GPU process) ticking at 60 Hz. On the two-core
+// test laptop with an integrated GPU shared with the SDK's Vulkan inference,
+// that idle 60 Hz churn was a large part of the load that made the self-view
+// (and even the mouse cursor) lag as a session went on.
+const LOOP_INTERVAL_MS = 100;
+function startLoop() {
+  setInterval(() => loop(performance.now()), LOOP_INTERVAL_MS);
 }
 
 // ------------------------------------------------------------------- boot
@@ -1456,4 +2064,4 @@ setStatus('idle');
 setPauseUi('off');
 setValidation('Position', 'Waiting for the first frame.', 'neutral');
 paintUi();
-requestAnimationFrame(loop);
+startLoop();

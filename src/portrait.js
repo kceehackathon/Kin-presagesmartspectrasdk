@@ -200,6 +200,10 @@ export function mountPortrait(container) {
   pulseGlow.className = 'portrait-pulse';
   pulseGlow.setAttribute('aria-hidden', 'true');
   container.appendChild(pulseGlow);
+  // Breathing: the measured chest trace gently lifts the whole figure. A
+  // compositor-only transform updated at render rate (~5 Hz), no animation.
+  const svgEl = container.querySelector('.portrait-svg');
+  let breathKey = '';
 
   const $ = (id) => container.querySelector(`#${id}`);
   const els = {
@@ -237,15 +241,44 @@ export function mountPortrait(container) {
     return circle;
   });
 
-  const styleCache = new Map();
-  let lastWarmth = null;
   let lastFaceKey = '';
   let lastMouthPath = '';
 
-  function setVar(name, value) {
-    if (styleCache.get(name) === value) return;
-    styleCache.set(name, value);
-    container.style.setProperty(name, value);
+  // Pulse light: phase-continuous so a BPM change never makes it jump.
+  const PULSE_STEP_MS = 80;
+  let pulseTimer = 0;
+  let pulsePeriod = 1100;
+  let pulsePhase = 0;
+  let pulseLastAt = 0;
+  let pulseShown = '';
+
+  function showPulse(opacity, scale) {
+    const key = `${opacity.toFixed(2)}|${scale.toFixed(2)}`;
+    if (key === pulseShown) return;
+    pulseShown = key;
+    pulseGlow.style.opacity = opacity.toFixed(2);
+    pulseGlow.style.transform = `translate(-50%, -50%) scale(${scale.toFixed(2)})`;
+  }
+
+  function stepPulse() {
+    const now = performance.now();
+    pulsePhase = (pulsePhase + (now - pulseLastAt) / pulsePeriod) % 1;
+    pulseLastAt = now;
+    // Same shape as the old keyframes: dim at 0/100%, brightest at 50%.
+    const wave = 0.5 - 0.5 * Math.cos(pulsePhase * Math.PI * 2);
+    showPulse(0.08 + wave * 0.54, 0.85 + wave * 0.65);
+  }
+
+  function setPulse(active, periodMs) {
+    pulsePeriod = periodMs;
+    if (active && !pulseTimer) {
+      pulseLastAt = performance.now();
+      pulseTimer = setInterval(stepPulse, PULSE_STEP_MS);
+    } else if (!active && pulseTimer) {
+      clearInterval(pulseTimer);
+      pulseTimer = 0;
+      showPulse(0, 0.85);
+    }
   }
 
   function applyFace(face) {
@@ -283,37 +316,27 @@ export function mountPortrait(container) {
   }
 
   function render(state = {}) {
-    const presence = clamp(num(state.presence, 0.3), 0, 1);
     const pulse = state.pulse || {};
-    const breath = state.breath || {};
     const face = state.face || {};
 
-    const pulseActive = Boolean(pulse.active);
-    const pulseEnv = pulseActive ? clamp(num(pulse.envelope), 0, 1) : 0;
-    const breathActive = Boolean(breath.active);
-    const breathPhase = breathActive ? clamp(num(breath.phase), -1, 1) : 0;
-
-    const pulseRate = Number(pulse.bpm);
-    const breathRate = Number(breath.rate);
-    const pulseDuration = Number.isFinite(pulseRate) && pulseRate > 0
-      ? Math.min(2.4, Math.max(0.42, 60 / pulseRate))
-      : 1.1;
-    const breathDuration = Number.isFinite(breathRate) && breathRate > 0
-      ? Math.min(12, Math.max(2.5, 60 / breathRate))
-      : 6;
-
-    setVar('--kin-pulse-duration', `${pulseDuration.toFixed(2)}s`);
-    setVar('--kin-breath-duration', `${breathDuration.toFixed(2)}s`);
-    setVar('--kin-pulse-play', pulseActive ? 'running' : 'paused');
-    setVar('--kin-breath-play', breathActive ? 'running' : 'paused');
-    setVar('--kin-pulse-opacity', (0.32 + pulseEnv * 0.42).toFixed(3));
-    setVar('--kin-pulse-scale', (0.28 + pulseEnv * 0.45).toFixed(3));
-
-    const nextWarmth = (0.35 + presence * 0.45 + pulseEnv * 0.2).toFixed(2);
-    if (nextWarmth !== lastWarmth) {
-      lastWarmth = nextWarmth;
-      container.dataset.warmth = nextWarmth;
+    const breath = state.breath || {};
+    const lift = breath.active ? clamp(num(breath.phase), -1, 1) : 0;
+    const nextBreath = lift.toFixed(2);
+    if (svgEl && nextBreath !== breathKey) {
+      breathKey = nextBreath;
+      svgEl.style.transform = `translateY(${(-lift * 5).toFixed(1)}px) scale(${(1 + lift * 0.006).toFixed(4)})`;
     }
+
+    // The pulse glow is paced by the measured rate (rounded BPM) and stepped
+    // by a ~12 Hz timer instead of a CSS animation: any running CSS animation
+    // makes Chromium composite the whole window at 60 Hz, which on the test
+    // laptop's integrated GPU (shared with the SDK's inference) made the
+    // self-view lag once pulse arrived. A soft glow reads fine at 12 Hz.
+    const pulseRate = Math.round(Number(pulse.bpm));
+    const periodMs = Number.isFinite(pulseRate) && pulseRate > 0
+      ? Math.min(2400, Math.max(420, 60000 / pulseRate))
+      : 1100;
+    setPulse(Boolean(pulse.active), periodMs);
 
     // Expression is the only part that needs a fast, discrete pose update.
     // Throttle it and skip identical frames; pulse and breath run in CSS so

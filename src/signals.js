@@ -1,10 +1,13 @@
 // Turns decoded SmartSpectra windows into animation targets.
 //
 // SmartSpectra emits windowed metrics slices, not a continuous frame stream.
-// The arterial-pressure trace and the chest-movement trace are real measured
-// waveforms, so the portrait follows those. The rate numbers are displayed
-// only when the SDK provides them; the portrait never invents a beat or a
-// breath to fill a silent stretch.
+// Kin requests the chest trace and the measured rates. It deliberately does
+// not request the arterial-pressure trace: that metric pulls a separate
+// phasic-bp-inference model in the native SDK, and the model load competed
+// with the live camera. The pulse glow instead uses the measured pulse rate to
+// pace a short envelope. If a future SDK configuration supplies the trace, the
+// code still follows it. The portrait never invents a beat or a breath to fill
+// a silent stretch.
 
 const PULSE_WINDOW_MS = 4200;
 const BREATH_WINDOW_MS = 12000;
@@ -21,19 +24,19 @@ const NEUTRAL = Object.freeze({
   blush: 0.12,
 });
 
-// The SDK's ExpressionType values. These labels describe visible facial shapes,
-// not inner feelings, and the UI copy says so. Keep them shape-based: the app
-// makes no emotion claim even though the SDK's enum uses emotion names.
+// The SDK's ExpressionType names. They name the visible expression the model
+// sees; the UI says "visible expression, not a feeling" beside them, so Kin
+// still makes no claim about how the person feels.
 export const EXPRESSION_LABELS = Object.freeze({
   0: 'Neutral',
-  1: 'Brow knit',
-  2: 'Lip pull',
-  3: 'Nose wrinkle',
-  4: 'Eyes wide',
-  5: 'Mouth curve',
+  1: 'Angry',
+  2: 'Contempt',
+  3: 'Disgust',
+  4: 'Fear',
+  5: 'Happy',
   6: 'Neutral',
-  7: 'Eyes down',
-  8: 'Brows up',
+  7: 'Sad',
+  8: 'Surprise',
 });
 
 const EXPRESSION_TARGETS = Object.freeze({
@@ -321,7 +324,9 @@ export class SignalEngine {
   }
 
   tick(dt, now = performance.now()) {
-    const step = Math.min(0.06, Math.max(0.001, dt));
+    // The studio ticks every ~100 ms (not 60 Hz). A 0.06 s clamp made every
+    // ease run ~5x slower than designed (expressions landed 1-2 s late).
+    const step = Math.min(0.35, Math.max(0.001, dt));
 
     this.pulseTraceLive = this.entitlements.pulse && now - this.pulseTraceAt < PULSE_LIVE_MS;
     this.breathTraceLive = this.entitlements.breath && now - this.breathTraceAt < BREATH_LIVE_MS;
@@ -388,9 +393,14 @@ export class SignalEngine {
     }[this.status] ?? 0.32;
     this.presence += (presenceTarget - this.presence) * (1 - Math.exp(-step / 0.6));
 
-    if (now - this.lastHistoryAt > 120) {
+    if (now - this.lastHistoryAt > 240) {
       this.lastHistoryAt = now;
-      this.pulseHistory.push(this.pulseTraceLive ? this.pulseNorm : null);
+      // Kin does not request the arterial trace, so without this the pulse
+      // sparkline stayed empty all session. Plot the measured rate's trend
+      // (45-135 bpm mapped to the card height); nothing is invented.
+      this.pulseHistory.push(this.pulseTraceLive
+        ? this.pulseNorm
+        : pulseRateFresh ? clamp((this.pulseRate - 45) / 90, 0, 1) : null);
       this.breathHistory.push(this.breathTraceLive ? (this.breathPhase + 1) / 2 : null);
       if (this.pulseHistory.length > 150) this.pulseHistory.shift();
       if (this.breathHistory.length > 150) this.breathHistory.shift();

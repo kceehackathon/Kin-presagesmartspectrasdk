@@ -29,8 +29,8 @@ Do not open the primary webcam in vokoscreenNG "just in case." Test the exact se
 1. Download vokoscreenNG from the official page and install it. There is no account or paid tier.
 2. Launch vokoscreenNG. On the **Screen** tab, choose **Fullscreen** and select the display that contains Kin. Kin opens fullscreen, so the portrait, self-view, and rail are all in one window; do not use **Window** for the main recording. Do not use **Area** unless you deliberately want to crop.
 3. This demo is screen-only. Disable microphone and desktop audio capture in vokoscreenNG; Kin has no synthesized speech or app audio.
-4. Set **Frames** to `30`.
-5. Set **Format** to `MP4` and **Video codec** to `H.264`. If vokoscreenNG asks to download the Cisco OpenH264 encoder, accept it. If MP4 with H.264 is not available on your install, record `MKV` with H.264 and convert or remux to MP4 before upload.
+4. Set **Frames** to `25`. The existing test configuration uses 25 fps; it is enough for a screen demo and leaves more CPU for Kin's live measurement. Do not raise it to 60.
+5. The existing configuration records `MKV` with `H.264`. That is acceptable for the working file; remux it to MP4 before YouTube upload. If your vokoscreenNG offers MP4 with H.264 directly, that also works. If it asks to download the Cisco OpenH264 encoder, accept it.
 6. Leave **Countdown** at `3` seconds, or set a short countdown. This gives you time to move the pointer away.
 7. Open the **Settings** tab (wrench icon):
    - Set **Videopath** to a folder with enough free space.
@@ -59,7 +59,7 @@ The default Start/Stop shortcut is `CTRL+SHIFT+F10`. It does not clash with Kin'
 ## Recording the demo
 
 1. Launch Kin and leave it on the consent screen.
-2. In vokoscreenNG, confirm **Fullscreen**, the correct display, `30` frames, `MP4`/`H.264`, audio off, camera off, and **Minimized when recording starts**.
+2. In vokoscreenNG, confirm **Fullscreen**, the correct display, `25` frames, H.264, audio off, camera off, and **Minimized when recording starts**.
 3. Click **Start**. Wait for the countdown and confirm vokoscreenNG has minimized. Begin `demo-script.md`.
 4. Stop the recording after the closing line with `CTRL+SHIFT+F10`.
 5. Open the **Folder** and check the editing list at the end of `demo-script.md`.
@@ -72,7 +72,7 @@ The default Start/Stop shortcut is `CTRL+SHIFT+F10`. It does not clash with Kin'
 
 Kin runs the SmartSpectra measurement loop and a portrait animation. vokoscreenNG adds a screen capture and an encoder. On a laptop, the combination can be heavy.
 
-- Record at 30 fps, not 60.
+- Record at 25 fps, not 60.
 - Close browsers and other GPU-heavy apps.
 - Keep the vokoscreenNG window minimized.
 - If H.264 encoding is still too heavy, record at 1600×900 or 1280×720. Check that the portrait, self-view, and rail text are still readable.
